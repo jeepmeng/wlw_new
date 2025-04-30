@@ -1,0 +1,14 @@
+env: ori
+
+# 配置文件示例
+wmx_database:
+  DB_HOST: "172.16.19.61"
+  DB_PORT: "5432"
+  DB_NAME: "wmx"
+  DB_USER: "root"
+  DB_PASSWORD: "zeus@CC1234!"
+
+
+
+
+

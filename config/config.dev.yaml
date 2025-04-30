@@ -1,0 +1,12 @@
+env: dev
+
+wmx_database:
+  DB_HOST: "localhost"
+  DB_PORT: "5432"
+  DB_NAME: "mydb"
+  DB_USER: "postgres"
+  DB_PASSWORD: "password"
+
+vector_service:
+  model_path: "./bge-large-zh-v1.5"
+  port: 8001
