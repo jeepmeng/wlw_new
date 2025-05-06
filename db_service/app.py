@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 import logging
@@ -8,15 +8,6 @@ router = APIRouter()
 # 🪵 日志配置
 logger = logging.getLogger("api")
 logging.basicConfig(level=logging.INFO)
-
-# 🔐 简单的 Token 鉴权依赖
-def verify_token(authorization: str = Header(...)):
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid token format")
-    token = authorization.replace("Bearer ", "")
-    if token != "my-secret-token":  # 你可以改成从配置文件读取
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    return token
 
 # ✅ 数据模型
 class TextItem(BaseModel):
@@ -48,7 +39,7 @@ class ResponseModel(BaseModel):
     data: Optional[dict] = None
 
 # 📄 文本接口
-@router.post("/text/add", response_model=ResponseModel, dependencies=[Depends(verify_token)])
+@router.post("/text/add", response_model=ResponseModel)
 def add_text(item: TextItem):
     try:
         logger.info(f"Add text: {item}")
@@ -57,7 +48,7 @@ def add_text(item: TextItem):
         logger.exception("Failed to add text")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/text/describe", response_model=ResponseModel, dependencies=[Depends(verify_token)])
+@router.post("/text/describe", response_model=ResponseModel)
 def add_text_description(item: TextItem):
     try:
         logger.info(f"Update description: {item}")
@@ -66,7 +57,7 @@ def add_text_description(item: TextItem):
         logger.exception("Failed to update description")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/text/query", response_model=ResponseModel, dependencies=[Depends(verify_token)])
+@router.get("/text/query", response_model=ResponseModel)
 def query_text(id: str):
     try:
         logger.info(f"Query text id={id}")
@@ -76,7 +67,7 @@ def query_text(id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 # 📌 向量接口
-@router.post("/vector/add", response_model=ResponseModel, dependencies=[Depends(verify_token)])
+@router.post("/vector/add", response_model=ResponseModel)
 def add_vector(item: VectorItem):
     try:
         logger.info(f"Add vector: {item.id}")
@@ -85,7 +76,7 @@ def add_vector(item: VectorItem):
         logger.exception("Failed to add vector")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/vector/compare", response_model=ResponseModel, dependencies=[Depends(verify_token)])
+@router.post("/vector/compare", response_model=ResponseModel)
 def compare_vector(item: VectorItem):
     try:
         logger.info(f"Compare vector for id={item.id}")
@@ -94,7 +85,7 @@ def compare_vector(item: VectorItem):
         logger.exception("Failed to compare vector")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/vector/query", response_model=ResponseModel, dependencies=[Depends(verify_token)])
+@router.post("/vector/query", response_model=ResponseModel)
 def vector_query(item: VectorItem):
     try:
         logger.info(f"Vector query for text: {item.text}")
@@ -104,7 +95,7 @@ def vector_query(item: VectorItem):
         raise HTTPException(status_code=500, detail=str(e))
 
 # 💬 对话接口
-@router.get("/dialog/history/{user_id}", response_model=ResponseModel, dependencies=[Depends(verify_token)])
+@router.get("/dialog/history/{user_id}", response_model=ResponseModel)
 def get_history(user_id: str):
     try:
         logger.info(f"Get dialog history for user {user_id}")
@@ -113,7 +104,7 @@ def get_history(user_id: str):
         logger.exception("Failed to get dialog history")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/dialog/add", response_model=ResponseModel, dependencies=[Depends(verify_token)])
+@router.post("/dialog/add", response_model=ResponseModel)
 def add_dialog(item: DialogItem):
     try:
         logger.info(f"Add dialog for user {item.user_id}")
@@ -123,7 +114,7 @@ def add_dialog(item: DialogItem):
         raise HTTPException(status_code=500, detail=str(e))
 
 # 🔍 检索接口
-@router.get("/search/bm25", response_model=ResponseModel, dependencies=[Depends(verify_token)])
+@router.get("/search/bm25", response_model=ResponseModel)
 def search_bm25(query: str, top_k: int = 10):
     try:
         logger.info(f"BM25 search query: {query}")
@@ -132,7 +123,7 @@ def search_bm25(query: str, top_k: int = 10):
         logger.exception("Failed BM25 search")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/search/mix", response_model=ResponseModel, dependencies=[Depends(verify_token)])
+@router.post("/search/mix", response_model=ResponseModel)
 def search_mix(item: MixedSearchQuery):
     try:
         logger.info(f"Mixed search: {item.query}, alpha={item.alpha}")
