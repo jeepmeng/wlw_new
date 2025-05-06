@@ -1,13 +1,12 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
-import logging
+
+from config.config import settings
+from utils.logger import setup_logger
 
 router = APIRouter()
-
-# 🪵 日志配置
-logger = logging.getLogger("api")
-logging.basicConfig(level=logging.INFO)
+logger = setup_logger("api")
 
 # ✅ 数据模型
 class TextItem(BaseModel):
