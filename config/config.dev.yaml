@@ -7,6 +7,13 @@ wmx_database:
   DB_USER: "root"
   DB_PASSWORD: "zeus@CC1234!"
 
+#vector_service:
+#  model_path: "./bge-large-zh-v1.5"
+#  port: 8001
+
+
 vector_service:
   model_path: "./bge-large-zh-v1.5"
   port: 8001
+  redis_broker: "redis://127.0.0.1:6379/0"
+  redis_backend: "redis://127.0.0.1:6379/1"

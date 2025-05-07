@@ -6,6 +6,7 @@ import os
 from utils.logger import setup_logger  # ✅ 导入通用 logger
 from config.config import load_config  # ✅ 读取配置
 
+
 # ✅ 加载配置
 config = load_config()
 vector_config = config.vector_service

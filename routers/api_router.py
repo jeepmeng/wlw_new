@@ -10,6 +10,7 @@ from config.config import settings
 from utils.logger import setup_logger
 from fastapi import FastAPI
 import uvicorn
+from vector_service.vector_tasks import encode_text_task
 
 router = APIRouter()
 logger = setup_logger("api")
@@ -141,4 +142,11 @@ def search_mix(item: MixedSearchQuery):
         logger.exception("Failed mixed search")
         raise HTTPException(status_code=500, detail=str(e))
 
-
+@router.post("/vector/encode_async", response_model=ResponseModel)
+def vector_encode_async(item: VectorItem):
+    task = encode_text_task.delay(item.text)
+    vec = task.get(timeout=10)
+    return {
+        "msg": "vector generated",
+        "data": {"vector": vec}
+    }
