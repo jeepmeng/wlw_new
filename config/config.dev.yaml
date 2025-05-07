@@ -1,11 +1,11 @@
 env: dev
 
 wmx_database:
-  DB_HOST: "localhost"
+  DB_HOST: "172.16.19.61"
   DB_PORT: "5432"
-  DB_NAME: "mydb"
-  DB_USER: "postgres"
-  DB_PASSWORD: "password"
+  DB_NAME: "wmx"
+  DB_USER: "root"
+  DB_PASSWORD: "zeus@CC1234!"
 
 vector_service:
   model_path: "./bge-large-zh-v1.5"

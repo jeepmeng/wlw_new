@@ -1,9 +1,15 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
+from db_service.session import get_db  # ✅ 引入依赖注入函数
+from db_service.vector_service import *
 
 from config.config import settings
 from utils.logger import setup_logger
+from fastapi import FastAPI
+import uvicorn
 
 router = APIRouter()
 logger = setup_logger("api")
@@ -17,7 +23,7 @@ class TextItem(BaseModel):
 class VectorItem(BaseModel):
     id: Optional[str] = None
     text: str
-    vector: List[float]
+    # vector: List[float]
 
 class DialogItem(BaseModel):
     user_id: str
@@ -57,7 +63,7 @@ def add_text_description(item: TextItem):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/text/query", response_model=ResponseModel)
-def query_text(id: str):
+def query_text(id: str, db: Session = Depends(get_db)):
     try:
         logger.info(f"Query text id={id}")
         return {"msg": "text fetched", "data": {"id": id, "content": "示例文本"}}
@@ -85,10 +91,14 @@ def compare_vector(item: VectorItem):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/vector/query", response_model=ResponseModel)
-def vector_query(item: VectorItem):
+def vector_query(item: VectorItem, db: Session = Depends(get_db)):
+    # print("🔥 当前 VectorItem 模型字段：", VectorItem.model_fields.keys())
+    # print(item.text)
     try:
         logger.info(f"Vector query for text: {item.text}")
-        return {"msg": "topK vector search", "data": {"results": []}}
+        text_vec = get_text_vector(item.text)
+        results = query_similar_sentences(text_vec, db)
+        return {"msg": "top-10 vector search", "data": {"results": results}}
     except Exception as e:
         logger.exception("Failed vector query")
         raise HTTPException(status_code=500, detail=str(e))
@@ -130,3 +140,5 @@ def search_mix(item: MixedSearchQuery):
     except Exception as e:
         logger.exception("Failed mixed search")
         raise HTTPException(status_code=500, detail=str(e))
+
+
