@@ -1,4 +1,4 @@
-from config import settings
+from settings import settings
 
 def main():
     print("当前环境：", settings.env)

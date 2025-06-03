@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, text  # ✅ 加了 text
 from sqlalchemy.orm import sessionmaker
-from config.config import settings  # ✅ 使用 Settings 实例
+from config.settings import settings  # ✅ 使用 Settings 实例
 from urllib.parse import quote_plus
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
@@ -58,7 +58,7 @@ def test_db_connection():
 
 import asyncio
 from sqlalchemy import text
-from db_service.session import get_async_db
+# from db_service.session import get_async_db
 
 async def test_async_db_connection():
     # 使用 get_async_db() 获取一个异步数据库连接

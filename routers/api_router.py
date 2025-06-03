@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from db_service.session import get_async_db  # ✅ 引入依赖注入函数
 from db_service.vector_service import *
 from db_service.vector_service import async_query_similar_sentences
-from config.config import settings
+from config.settings import settings
 from utils.logger import setup_logger
 from fastapi import FastAPI
 import uvicorn

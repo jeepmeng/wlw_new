@@ -4,7 +4,7 @@ from sentence_transformers import SentenceTransformer
 import uvicorn
 import os
 from utils.logger import setup_logger  # ✅ 导入通用 logger
-from config.config import load_config  # ✅ 读取配置
+from config.settings import load_config  # ✅ 读取配置
 
 
 # ✅ 加载配置

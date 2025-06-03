@@ -1,32 +1,46 @@
+# ✅ vector_tasks.py
+# Celery 异步任务：执行文本向量化并写入 Redis
+
 from celery import Celery
 from sentence_transformers import SentenceTransformer
-import os
-
-# ✅ 日志、配置、模型路径复用你原来的逻辑
+from redis import Redis
 from utils.logger import setup_logger
-from config.config import load_config
+from config.settings import load_config
+import os
+import json
 
-# ✅ 初始化
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+
+# ✅ 日志与配置
+logger = setup_logger("celery_worker")
 config = load_config()
 vector_config = config.vector_service
-logger = setup_logger("celery_worker")
+
+# ✅ 初始化 Redis client
+redis_client = Redis.from_url(vector_config.redis_backend)
 
 # ✅ 创建 Celery 应用
 celery_app = Celery(
     "vector_tasks",
-    broker=vector_config.redis_broker,   # e.g. redis://localhost:6379/0
-    backend=vector_config.redis_backend  # e.g. redis://localhost:6379/1
+    broker=vector_config.redis_broker,
+    backend=vector_config.redis_backend
 )
 
-# ✅ 加载模型
+# ✅ 加载模型（每个 worker 启动时执行一次）
 base_dir = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(base_dir, "..", "bge-large-zh-v1.5")
+model_path = os.path.join(base_dir, "..", vector_config.model_path)
 logger.info(f"加载向量模型路径: {model_path}")
 model = SentenceTransformer(model_path, device="cpu")
+model.encode("warmup", normalize_embeddings=True)  # ✅ 预热模型
 
-# ✅ 定义任务
+# ✅ 定义异步任务
 @celery_app.task(name="vector.encode")
 def encode_text_task(text: str):
     logger.info(f"处理文本向量任务：{text}")
     vec = model.encode(text, normalize_embeddings=True).tolist()
-    return vec
+    task_id = encode_text_task.request.id
+    redis_key = f"vec_result:{task_id}"
+    redis_client.set(redis_key, json.dumps(vec), ex=3600)
+    return "OK"

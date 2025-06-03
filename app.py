@@ -1,8 +1,13 @@
 from fastapi import FastAPI
 from routers.api_router import router
+from routers.async_vector_api import router as async_vector_router
+
+
 
 app = FastAPI()
-app.include_router(router)
+app.include_router(async_vector_router)
+
+# app.include_router(router)
 
 if __name__ == "__main__":
     import uvicorn

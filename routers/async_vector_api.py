@@ -1,63 +1,103 @@
-# ✅ 这是拆分后的结构：
-# - 保留 Celery encode_text_task 异步执行向量计算
-# - 任务结果不直接 return，而是存储到 Redis
-# - 主流程通过 task_id 查询 Redis 获取结果
-
-from celery import Celery
-from sentence_transformers import SentenceTransformer
+# ✅ async_vector_api.py
+# FastAPI 路由接口：提交向量任务 + 查询向量结果 + 检索数据库内容
+import asyncio
+from fastapi import APIRouter, HTTPException, Depends, Query
+from pydantic import BaseModel
+from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+from db_service.session import get_async_db
+from db_service.vector_service import async_query_similar_sentences, async_hybrid_search
+from utils.logger import setup_logger
 from redis import Redis
 import json
-import os
+from vector_service.vector_tasks import encode_text_task
+from config.settings import settings
 
-# ✅ 日志、配置、模型路径复用你原来的逻辑
-from utils.logger import setup_logger
-from config.config import load_config
+router = APIRouter()
+logger = setup_logger("async_vector_api")
 
-# ✅ 初始化
-config = load_config()
-vector_config = config.vector_service
-logger = setup_logger("celery_worker")
+# Redis client
+redis_client = Redis.from_url(settings.vector_service.redis_backend)
 
-# ✅ 创建 Celery 应用
-celery_app = Celery(
-    "vector_tasks",
-    broker=vector_config.redis_broker,   # e.g. redis://localhost:6379/0
-    backend=vector_config.redis_backend  # e.g. redis://localhost:6379/1
-)
+# ✅ 请求数据模型
+class VectorItem(BaseModel):
+    id: Optional[str] = None
+    text: str
 
-# ✅ 连接 Redis 手动存储结果（防止 Celery backend 序列化崩溃）
-redis_client = Redis.from_url(vector_config.redis_backend)
+class ResponseModel(BaseModel):
+    msg: str
+    data: Optional[dict] = None
 
-# ✅ 加载模型
-base_dir = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(base_dir, "..", "bge-large-zh-v1.5")
-logger.info(f"加载向量模型路径: {model_path}")
-model = SentenceTransformer(model_path, device="cpu")
+# ✅ 提交异步向量计算任务
+@router.post("/vector/task", response_model=ResponseModel)
+def submit_vector_task(item: VectorItem):
+    task = encode_text_task.delay(item.text)
+    return {"msg": "任务创建成功", "data": {"task_id": task.id}}
 
-# ✅ 定义任务（仅存储 task_id → 向量 映射）
-@celery_app.task(name="vector.encode")
-def encode_text_task(text: str):
-    logger.info(f"处理文本向量任务：{text}")
-    vec = model.encode(text, normalize_embeddings=True).tolist()
-
-    # ✅ 自定义存储结果（以 task_id 为 key）
-    task_id = encode_text_task.request.id
-    redis_key = f"vec_result:{task_id}"
-    redis_client.set(redis_key, json.dumps(vec), ex=3600)  # 1 小时过期
-
-    return "OK"  # ✅ 只返回状态，实际数据从 Redis 查
-
-# ✅ 配套接口函数（可用于 FastAPI 路由中）
-def submit_vector_task(text: str):
-    task = encode_text_task.delay(text)
-    return {"msg": "任务已提交", "task_id": task.id}
-
-
-def get_vector_result(task_id: str):
+# ✅ 轮询获取任务计算结果并执行向量查询
+@router.get("/vector/task_result/{task_id}", response_model=ResponseModel)
+async def get_vector_result(task_id: str, db: AsyncSession = Depends(get_async_db)):
     redis_key = f"vec_result:{task_id}"
     vec_json = redis_client.get(redis_key)
     if vec_json:
-        vec = json.loads(vec_json)
-        return {"status": "SUCCESS", "vector": vec}
+        text_vec = json.loads(vec_json)
+        results = await async_query_similar_sentences(text_vec, db)
+        return {"msg": "top-10 vector search", "data": {"results": results}}
     else:
-        return {"status": "PENDING", "vector": None}
+        return {"msg": "任务未完成", "data": {"status": "PENDING"}}
+
+
+# # ✅ 提交混合搜索任务（保存 query_text）
+# @router.post("/vector/mix_task", response_model=ResponseModel)
+# def submit_mix_task(item: VectorItem):
+#     task = encode_text_task.delay(item.text)
+#     redis_client.set(f"text:{task.id}", item.text, ex=3600)
+#     return {"msg": "任务创建成功", "data": {"task_id": task.id}}
+
+
+@router.post("/vector/mix_task", response_model=ResponseModel)
+async def submit_mix_task_blocking(
+    item: VectorItem,
+    db: AsyncSession = Depends(get_async_db),
+    top_k: int = Query(15, ge=1),
+    lambda_: float = Query(0.8, ge=0.0, le=1.0),
+    timeout: int = Query(30, ge=1, le=60)
+):
+    task = encode_text_task.delay(item.text)
+    task_id = task.id
+
+    # 存储原始文本供后续使用
+    redis_client.set(f"text:{task_id}", item.text, ex=3600)
+
+    import time
+    start = time.time()
+
+    while time.time() - start < timeout:
+        vec_json = redis_client.get(f"vec_result:{task_id}")
+        if vec_json:
+            vector = json.loads(vec_json)
+            results = await async_hybrid_search(item.text, vector, db, top_k=top_k, lambda_=lambda_)
+            return {"msg": "hybrid search result", "data": {"results": results}}
+        await asyncio.sleep(1)
+
+    return {"msg": "等待超时，任务未完成", "data": {"task_id": task_id, "status": "TIMEOUT"}}
+
+# ✅ 查询混合搜索结果（支持可选参数）
+@router.get("/vector/mix_result/{task_id}", response_model=ResponseModel)
+async def get_hybrid_search_result(
+    task_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    top_k: int = Query(15, ge=1),
+    lambda_: float = Query(0.8, ge=0.0, le=1.0)
+):
+    vec_json = redis_client.get(f"vec_result:{task_id}")
+    query_text = redis_client.get(f"text:{task_id}")
+
+    if not vec_json or not query_text:
+        return {"msg": "任务未完成", "data": {"status": "PENDING"}}
+
+    vector = json.loads(vec_json)
+    text = query_text.decode()
+    results = await async_hybrid_search(text, vector, db, top_k=top_k, lambda_=lambda_)
+
+    return {"msg": "hybrid search result", "data": {"results": results}}

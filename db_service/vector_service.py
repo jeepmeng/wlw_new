@@ -4,6 +4,10 @@ from sqlalchemy import text
 import requests
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import bindparam
+import jieba
+
+
+
 
 async def async_query_similar_sentences(target_vector: list[float], db: AsyncSession) -> list[dict]:
     # 向量转 PostgreSQL 兼容格式（数组写法）
@@ -74,7 +78,83 @@ def query_similar_sentences(target_vector: list[float], db: Session) -> list[str
     return res
 
 
+
+async def async_hybrid_search(query_text: str, vector: list[float], db: AsyncSession, top_k=15, lambda_=0.8):
+
+
+    # 分词获取关键词用于 BM25 检索
+    terms = jieba.lcut(query_text)
+    keyword_query = ' '.join(set(terms))
+    vector_str = f"[{','.join(map(str, vector))}]"
+
+    # SELECT
+    # ori_sent_id, 1 - (ques_vector <  # > :vec::vector) AS vector_score
+    #                   FROM wmx_ques
+    #                   WHERE ques_vector IS NOT NULL
+    #                   ORDER BY ques_vector <  # > :vec::vector
+    #                   LIMIT 100
+
+
+
+    # 混合查询 SQL
+    sql = text("""
+        WITH vector_hits AS (
+            SELECT ori_sent_id, 1 - (ques_vector <#> CAST(:vec AS vector)) AS vector_score
+            FROM wmx_ques
+            WHERE ques_vector IS NOT NULL
+            ORDER BY ques_vector <#> CAST(:vec AS vector)
+            LIMIT 100
+        ),
+        vector_agg AS (
+            SELECT r.id, MAX(v.vector_score) AS vector_score
+            FROM vector_hits v
+            JOIN m_zhisk_results r ON r.uu_id = v.ori_sent_id
+            GROUP BY r.id
+        ),
+        bm25_hits AS (
+            SELECT id, pgroonga_score(tableoid, ctid) AS bm25_score
+            FROM m_zhisk_results
+            WHERE content &@~ :kw
+        )
+        SELECT r.id, r.content,
+               COALESCE(b.bm25_score, 0) AS bm25_score,
+               COALESCE(v.vector_score, 0) AS vector_score,
+               (1 - :lambda_) * COALESCE(b.bm25_score, 0) + :lambda_ * COALESCE(v.vector_score, 0) AS final_score
+        FROM m_zhisk_results r
+        LEFT JOIN bm25_hits b ON r.id = b.id
+        LEFT JOIN vector_agg v ON r.id = v.id
+        WHERE b.id IS NOT NULL OR v.id IS NOT NULL
+        ORDER BY final_score DESC
+        LIMIT :top_k
+    """)
+
+    # 执行 SQL 查询
+    result = await db.execute(sql, {
+        "vec": vector_str,
+        "kw": keyword_query,
+        "lambda_": lambda_,
+        "top_k": top_k
+    })
+    rows = result.fetchall()
+
+    # 结构化结果输出
+    return [
+        {
+            "id": r[0],
+            "content": r[1],
+            "bm25Score": float(r[2]),
+            "vectorScore": float(r[3]),
+            "finalScore": float(r[4])
+        } for r in rows
+    ]
+
+
+
+
+
 def get_text_vector(text: str) -> list[float]:
     resp = requests.post("http://localhost:8001/vector/encode", json={"text": text})
     resp.raise_for_status()
     return resp.json()["vector"]
+
+
