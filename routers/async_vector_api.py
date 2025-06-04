@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from db_service.session import get_async_db
-from db_service.vector_service import async_query_similar_sentences, async_hybrid_search
+from db_service.db_search_service import async_query_similar_sentences, async_hybrid_search
 from utils.logger import setup_logger
 from redis import Redis
 import json
