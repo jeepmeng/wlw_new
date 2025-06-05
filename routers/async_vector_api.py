@@ -12,7 +12,7 @@ from redis import Redis
 import json
 from vector_service.vector_tasks import encode_text_task
 from config.settings import settings
-
+import time
 router = APIRouter()
 logger = setup_logger("async_vector_api")
 
@@ -29,13 +29,15 @@ class ResponseModel(BaseModel):
     data: Optional[dict] = None
 
 # ✅ 提交异步向量计算任务
-@router.post("/vector/task", response_model=ResponseModel)
+@router.post("/search/gen_vector", response_model=ResponseModel)
 def submit_vector_task(item: VectorItem):
     task = encode_text_task.delay(item.text)
-    return {"msg": "任务创建成功", "data": {"task_id": task.id}}
+    task_id = task.id
+    redis_client.set(f"text:{task_id}", item.text, ex=3600)
+    return {"msg": "任务创建成功", "data": {"task_id": task_id}}
 
 # ✅ 轮询获取任务计算结果并执行向量查询
-@router.get("/vector/task_result/{task_id}", response_model=ResponseModel)
+@router.get("/search/vector_search/{task_id}", response_model=ResponseModel)
 async def get_vector_result(task_id: str, db: AsyncSession = Depends(get_async_db)):
     redis_key = f"vec_result:{task_id}"
     vec_json = redis_client.get(redis_key)
@@ -55,7 +57,7 @@ async def get_vector_result(task_id: str, db: AsyncSession = Depends(get_async_d
 #     return {"msg": "任务创建成功", "data": {"task_id": task.id}}
 
 
-@router.post("/vector/mix_task", response_model=ResponseModel)
+@router.post("/vector/hybrid_search", response_model=ResponseModel)
 async def submit_mix_task_blocking(
     item: VectorItem,
     db: AsyncSession = Depends(get_async_db),
@@ -69,7 +71,7 @@ async def submit_mix_task_blocking(
     # 存储原始文本供后续使用
     redis_client.set(f"text:{task_id}", item.text, ex=3600)
 
-    import time
+
     start = time.time()
 
     while time.time() - start < timeout:
@@ -83,7 +85,7 @@ async def submit_mix_task_blocking(
     return {"msg": "等待超时，任务未完成", "data": {"task_id": task_id, "status": "TIMEOUT"}}
 
 # ✅ 查询混合搜索结果（支持可选参数）
-@router.get("/vector/mix_result/{task_id}", response_model=ResponseModel)
+@router.get("/vector/hybrid_search/{task_id}", response_model=ResponseModel)
 async def get_hybrid_search_result(
     task_id: str,
     db: AsyncSession = Depends(get_async_db),
