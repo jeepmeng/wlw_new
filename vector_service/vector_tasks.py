@@ -5,6 +5,7 @@ from celery import Celery
 from sentence_transformers import SentenceTransformer
 from redis import Redis
 from utils.logger import setup_logger
+from utils.logger_manager import get_logger
 from config.settings import load_config
 import os
 import json
@@ -14,7 +15,8 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 # ✅ 日志与配置
-logger = setup_logger("celery_worker")
+# logger = setup_logger("celery_worker")
+logger = get_logger("vector_service")
 config = load_config()
 vector_config = config.vector_service
 
@@ -38,9 +40,15 @@ model.encode("warmup", normalize_embeddings=True)  # ✅ 预热模型
 # ✅ 定义异步任务
 @celery_app.task(name="vector.encode")
 def encode_text_task(text: str):
-    logger.info(f"处理文本向量任务：{text}")
-    vec = model.encode(text, normalize_embeddings=True).tolist()
-    task_id = encode_text_task.request.id
-    redis_key = f"vec_result:{task_id}"
-    redis_client.set(redis_key, json.dumps(vec), ex=3600)
-    return "OK"
+    try:
+        logger.info(f"处理文本向量任务：{text}")
+        vec = model.encode(text, normalize_embeddings=True).tolist()
+        task_id = encode_text_task.request.id
+        redis_key = f"vec_result:{task_id}"
+        redis_client.set(redis_key, json.dumps(vec), ex=3600)
+        return "job is done"
+
+    except Exception as e:
+        logger.exception(f"向量化任务失败，文本: {text}，错误: {str(e)}")
+        return "ERROR"
+

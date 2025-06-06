@@ -87,15 +87,6 @@ async def async_hybrid_search(query_text: str, vector: list[float], db: AsyncSes
     keyword_query = ' '.join(set(terms))
     vector_str = f"[{','.join(map(str, vector))}]"
 
-    # SELECT
-    # ori_sent_id, 1 - (ques_vector <  # > :vec::vector) AS vector_score
-    #                   FROM wmx_ques
-    #                   WHERE ques_vector IS NOT NULL
-    #                   ORDER BY ques_vector <  # > :vec::vector
-    #                   LIMIT 100
-
-
-
     # 混合查询 SQL
     sql = text("""
         WITH vector_hits AS (

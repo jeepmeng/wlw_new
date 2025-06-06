@@ -2,6 +2,15 @@ from pydantic import BaseModel
 import yaml
 import os
 
+# config/settings.py
+from dotenv import load_dotenv, find_dotenv
+load_dotenv(find_dotenv())  # 自动向上查找最近的 .env
+
+
+ENV = os.getenv("ENV", "dev")
+
+
+
 # ✅ 数据库配置
 class DBConfig(BaseModel):
     DB_HOST: str
