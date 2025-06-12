@@ -40,11 +40,11 @@ async def async_query_similar_sentences(target_vector: list[float], db: AsyncSes
     rows2 = result2.fetchall()
 
     res = [{"关联结果": i + 1, "text": row[0]} for i, row in enumerate(rows2)]
-    print("✅ 最终返回内容：", res)
+    # print("✅ 最终返回内容：", res)
     return res
 
 
-def query_similar_sentences(target_vector: list[float], db: Session) -> list[str]:
+async def query_similar_sentences(target_vector: list[float], db: Session) -> list[str]:
     # 向量转 PostgreSQL 兼容格式
     vector_str = "[" + ",".join(map(str, target_vector)) + "]"
 
@@ -74,7 +74,7 @@ def query_similar_sentences(target_vector: list[float], db: Session) -> list[str
 
     # return [row[0] for row in result2]
     res = [{"关联结果": i + 1, "text": row[0]} for i, row in enumerate(result2)]
-    print(res)
+    # print(res)
     return res
 
 
