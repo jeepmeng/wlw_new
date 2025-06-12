@@ -45,7 +45,7 @@ class ResponseModel(BaseModel):
 
 # 插入向量记录
 class InsertVectorItem(BaseModel):
-    zhisk_file_id: str
+    zhisk_file_id: int
     content: str
     vector: List[float]
     jsons: Dict[str, Any]
