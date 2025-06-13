@@ -15,7 +15,7 @@ from vector_service.vector_tasks import encode_text_task
 from config.settings import settings
 import time
 from typing import List, Dict, Any
-from db_service.db_interact import (
+from db_service.db_interact_service import (
     insert_vectors_to_db,
     insert_ques_batch,
     update_by_id,
