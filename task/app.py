@@ -12,7 +12,7 @@ config = load_config()
 vector_config = config.vector_service
 
 # ✅ 初始化 logger
-logger = setup_logger("vector_service")
+logger = setup_logger("task")
 base_dir = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(base_dir, "..", "bge-large-zh-v1.5")
 # ✅ 加载模型

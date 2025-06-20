@@ -10,7 +10,7 @@ from config.settings import settings
 from utils.logger import setup_logger
 from fastapi import FastAPI
 import uvicorn
-from vector_service.vector_tasks import encode_text_task
+from task.gen_vector import encode_text_task
 import asyncio
 from celery.exceptions import TimeoutError as CeleryTimeoutError
 

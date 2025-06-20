@@ -1,7 +1,7 @@
 # vector_engine.py
 
-from vector_service.vector_tasks import encode_text_task
-from vector_service.vector_tasks import redis_client
+from task.vector_tasks import encode_text_task
+from task.vector_tasks import redis_client
 from db_service.db_search_service import async_query_similar_sentences
 import json
 

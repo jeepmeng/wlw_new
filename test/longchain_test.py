@@ -2,7 +2,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter,CharacterTextSplitter
 
 # 加载文档
-loader = PyPDFLoader("/Users/liufucong/Downloads/17479937511532025_05_21_滕王阁序.pdf")
+loader = PyPDFLoader("/Users/liufucong/Downloads/PLC模拟器使用说明.pdf")
 documents = loader.load()
 
 # 切分文本
@@ -19,4 +19,4 @@ chunks = splitter.split_text(full_text)
 
 for chunk in chunks:
     print(chunk)
-    print("="*80)
+    # print("="*80)

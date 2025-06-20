@@ -16,7 +16,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # ✅ 日志与配置
 # logger = setup_logger("celery_worker")
-logger = get_logger("vector_service")
+logger = get_logger("task")
 config = load_config()
 vector_config = config.vector_service
 
