@@ -1,7 +1,7 @@
 env: dev
 
 wmx_database:
-  DB_HOST: "172.16.19.34"
+  DB_HOST: "127.0.0.1"
   DB_PORT: "5432"
   DB_NAME: "wmx"
   DB_USER: "root"

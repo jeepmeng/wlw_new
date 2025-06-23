@@ -11,7 +11,8 @@ from db_service.db_search_service import async_query_similar_sentences, async_hy
 from utils.logger_manager import get_logger
 from redis import Redis
 import json
-from task.vector_tasks import encode_text_task
+# from task.vector_tasks import encode_text_task
+from task.gen_vector import encode_text_task
 from config.settings import settings
 import time
 from typing import List, Dict, Any

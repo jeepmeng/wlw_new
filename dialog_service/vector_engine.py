@@ -1,9 +1,16 @@
 # vector_engine.py
-
-from task.vector_tasks import encode_text_task
-from task.vector_tasks import redis_client
+from redis import Redis
+from config.settings import settings
+# from task.vector_tasks import encode_text_task
+from task.gen_vector import encode_text_task
+# from task.vector_tasks import redis_client
 from db_service.db_search_service import async_query_similar_sentences
 import json
+
+
+# ✅ 初始化 Redis client
+redis_client = Redis.from_url(settings.vector_service.redis_backend)
+
 
 def submit_vector_task_sync(text: str) -> str:
     task = encode_text_task.delay(text)
