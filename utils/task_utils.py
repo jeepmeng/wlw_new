@@ -1,6 +1,6 @@
 # utils/task_utils.py
 
-from task.gen_vector import encode_text_task
+from task.gen_vector_chain import encode_text_task
 
 def submit_vector_task_with_option(
     text: str,
