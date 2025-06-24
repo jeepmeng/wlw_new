@@ -42,7 +42,7 @@ class UpdateByIdItem(BaseModel):
 
 class FileMeta(BaseModel):
     url: HttpUrl
-    filename: str
+    # filename: str
     file_id: str
 
 class FileBatchRequest(BaseModel):

@@ -6,7 +6,7 @@ from utils.logger_manager import get_logger
 from openai import OpenAI  # Aliyun Qwen 兼容 OpenAI 接口
 import re
 
-logger = get_logger("gen_ques")
+logger = get_logger("task_gen_ques")
 config = load_config()
 
 # ✅ 初始化 Aliyun Qwen 客户端（OpenAI 协议）
