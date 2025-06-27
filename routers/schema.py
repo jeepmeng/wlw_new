@@ -41,9 +41,19 @@ class UpdateByIdItem(BaseModel):
 
 
 class FileMeta(BaseModel):
-    url: HttpUrl
-    # filename: str
+    url: str
+    filename: str
     file_id: str
 
 class FileBatchRequest(BaseModel):
     files: List[FileMeta]
+
+
+
+
+
+
+class WriteQuesBatch(BaseModel):
+    uu_id: str
+    sentences: list[str]
+    vectors: list[list[float]]

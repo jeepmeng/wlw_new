@@ -6,15 +6,16 @@ from langchain.text_splitter import (
     CharacterTextSplitter, MarkdownHeaderTextSplitter,
     RecursiveCharacterTextSplitter
 )
+
+from pypdf.errors import PdfStreamError
 from typing import Callable, Dict
 from langchain_core.documents import Document
 import pandas as pd
-
+import json
 from utils.logger_manager import get_logger  # ✅ 引入日志模块
+from utils.task_utils import NonRetryableLoaderError
 
 logger = get_logger("task_file_loader")
-
-
 
 # ✅ Excel 文件处理函数：保留结构 + 日志
 def load_excel_as_text(path: str) -> list:
@@ -58,11 +59,20 @@ def load_excel_as_text(path: str) -> list:
 
 # ✅ loader 封装器：统一异常日志
 def safe_loader(loader_func: Callable[[str], any], path: str, ext: str) -> list:
+    # try:
+    #     return loader_func(path)
+    # except Exception as e:
+    #     logger.exception(f"❌ 文件加载失败: .{ext} - {path} - 错误: {e}")
+    #     raise RuntimeError(f"文件加载失败: .{ext} - {e}")
     try:
         return loader_func(path)
+    except PdfStreamError as e:
+        # 明确这类错误不应触发 retry
+        logger.error(f"❌ PDF 文件结构损坏，不重试: .{ext} - {path} - 错误: {e}")
+        raise NonRetryableLoaderError(f"PDF 文件结构损坏: {e}")
     except Exception as e:
         logger.exception(f"❌ 文件加载失败: .{ext} - {path} - 错误: {e}")
-        return [Document(page_content=f"❌ 文件加载失败: {e}")]
+        raise RuntimeError(f"文件加载失败: .{ext} - {e}")
 
 # ✅ 文件加载器映射（加入异常包装）
 LOADER_MAP: Dict[str, Callable[[str], any]] = {
@@ -73,7 +83,7 @@ LOADER_MAP: Dict[str, Callable[[str], any]] = {
     "csv": lambda path: safe_loader(lambda p: CSVLoader(file_path=p).load(), path, "csv"),
     "xlsx": lambda path: safe_loader(load_excel_as_text, path, "xlsx"),
     "xls": lambda path: safe_loader(load_excel_as_text, path, "xls"),
-    "json": lambda path: safe_loader(lambda p: JSONLoader(p).load(), path, "json"),
+    "json": lambda path: safe_loader(load_json_with_auto_schema, path, "json"),
 }
 
 # ✅ 分割器智能映射函数（带异常日志）
@@ -81,6 +91,12 @@ def smart_split(ext: str, docs: list):
     try:
         if ext == "md":
             splitter = MarkdownHeaderTextSplitter(headers_to_split_on=[("#", 1), ("##", 2)])
+            texts = [doc.page_content for doc in docs]
+            chunks = []
+            for text in texts:
+                chunks.extend(splitter.split_text(text))  # ✅ 向后兼容
+            return chunks
+
         elif ext in ["pdf", "docx", "txt"]:
             splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
         else:
@@ -97,3 +113,24 @@ SPLITTER_MAP: Dict[str, Callable[[list], list]] = {
     ext: (lambda docs, ext=ext: smart_split(ext, docs))
     for ext in LOADER_MAP.keys()
 }
+
+
+
+def load_json_with_auto_schema(path: str):
+    # 先读取原始内容，判断结构
+    with open(path, 'r', encoding='utf-8') as f:
+        content = json.load(f)
+
+    # 动态选择 jq_schema
+    if isinstance(content, list):
+        # 是数组，尝试提取 content 字段
+        jq_schema = ".[] | .content"
+    elif isinstance(content, dict):
+        # 是对象，直接提取 content
+        jq_schema = ".content"
+    else:
+        # 是字符串或其他，直接返回原文
+        jq_schema = "."
+
+    # 使用动态 schema 加载文档
+    return JSONLoader(file_path=path, jq_schema=jq_schema).load()

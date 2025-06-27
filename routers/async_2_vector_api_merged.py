@@ -1,4 +1,5 @@
 import asyncio
+import os
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from db_service.session import get_async_db
@@ -22,7 +23,8 @@ from routers.schema import (
     InsertVectorItem,
     InsertQuesBatchItem,
     UpdateByIdItem,
-    FileBatchRequest
+    FileBatchRequest,
+    WriteQuesBatch
 )
 import aiohttp
 import tempfile
@@ -30,7 +32,7 @@ from task.file_parse_pipeline import parse_file_and_enqueue_chunks
 # router/async_vector_api.py
 from utils.task_utils import submit_vector_task_with_option
 from celery import chain
-
+from db_service.pg_pool import pg_conn
 
 router = APIRouter()
 # logger = setup_logger("async_vector_api")
@@ -215,6 +217,8 @@ async def upload_and_dispatch_files(data: FileBatchRequest):
                     raise HTTPException(status_code=400, detail=f"下载失败: {file.filename}")
                 with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
                     tmp.write(await resp.read())
+                    tmp.flush()
+                    os.fsync(tmp.fileno())
                     tmp_path = tmp.name
 
         # 构建任务链（这里只使用了一个任务，你可以继续加）
@@ -233,4 +237,17 @@ async def upload_and_dispatch_files(data: FileBatchRequest):
     return {"msg": "上传任务已提交", "tasks": task_ids}
 
 
+@router.post("/db/write-ques-batch")
+async def write_ques_batch(payload: WriteQuesBatch):
+    if len(payload.sentences) != len(payload.vectors):
+        return {"error": "数量不一致"}
 
+    data = [
+        (payload.uu_id, sent, json.dumps(vec))
+        for sent, vec in zip(payload.sentences, payload.vectors)
+    ]
+    sql = "INSERT INTO wmx_ques (ori_sent_id, ori_ques_sent, ques_vector) VALUES ($1, $2, $3)"
+    async with pg_conn() as conn:
+        await conn.executemany(sql, data)
+
+    return {"status": "ok", "inserted": len(data)}

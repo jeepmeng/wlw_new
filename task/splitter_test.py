@@ -1,6 +1,6 @@
 # test_splitter.py
 import sys
-from splitter_loader import LOADER_MAP, SPLITTER_MAP
+from task.splitter_loader import LOADER_MAP, SPLITTER_MAP
 from pathlib import Path
 
 

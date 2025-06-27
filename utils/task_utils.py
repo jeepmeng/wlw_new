@@ -19,3 +19,9 @@ def submit_vector_task_with_option(
         return encode_text_task.apply_async(args=[text], kwargs={"use_redis": True})
     else:
         return encode_text_task.delay(text)
+
+
+
+class NonRetryableLoaderError(Exception):
+    """用于标记不需要 retry 的异常"""
+    pass
