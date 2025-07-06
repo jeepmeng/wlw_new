@@ -4,6 +4,8 @@ from .celery_app import celery_app
 from db_service.db_interact_service import insert_ques_batch, insert_vectors_to_db
 from utils.logger_manager import get_logger  # ✅ 假设你使用统一日志
 import requests
+from db_service.pg_pool import pg_conn
+import json
 
 logger = get_logger("task_db_insteract")
 
@@ -88,3 +90,47 @@ def insert_ques_batch_task(self, vectors: list, sentences: list, uu_id: str):
     except Exception as e:
         logger.exception(f"[ques.batch] ❌ uu_id: {uu_id} 写入接口失败: {e}")
         raise
+
+
+
+
+
+
+
+
+# @celery_app.task(
+#     name="insert.ques.batch",
+#     bind=True,
+#     autoretry_for=(Exception,),
+#     retry_backoff=True,
+#     retry_kwargs={"max_retries": 3},
+# )
+# def insert_ques_batch_task(self, vectors: list, sentences: list, uu_id: str):
+#     """
+#     在 Celery worker 内直接用 asyncpg 写库
+#     """
+#     async def _run():
+#         if len(vectors) != len(sentences):
+#             raise ValueError("向量和句子数量不一致")
+#
+#         try:
+#             sql = "INSERT INTO wmx_ques (ori_sent_id, ori_ques_sent, ques_vector) VALUES ($1, $2, $3)"
+#             data = [
+#                 (uu_id, sent, json.dumps(vec))
+#                 for sent, vec in zip(sentences, vectors)
+#             ]
+#
+#             async with pg_conn() as conn:
+#                 await conn.executemany(sql, data)
+#
+#         except Exception as e:
+#             # 抛出异常给外层 retry
+#             raise e
+#
+#     try:
+#         asyncio.run(_run())
+#         return {"status": "ok", "inserted": len(sentences)}
+#     except Exception as e:
+#         err_trace = traceback.format_exc()
+#         logger.error(f"[ques.batch] ❌ uu_id: {uu_id} 批量写入失败: {e}\n{err_trace}")
+#         raise self.retry(exc=e)
