@@ -1,30 +1,33 @@
-# task/file_parse_pipeline.py
+import os
 from task.celery_app import celery_app
 from task.splitter_loader import LOADER_MAP, SPLITTER_MAP
 from task.gen_ques import generate_questions_task
 from task.gen_vector_chain import encode_text_task
-from task.db_interact import insert_ques_batch_task
 from celery import chain, group
 from utils.logger_manager import get_logger
-from utils.task_utils import NonRetryableLoaderError
-import aiohttp
-
-logger = get_logger("task_parse_file")
+import asyncio
+from db_service.pg_pool import pg_conn
+from utils.vector_utils import vector_to_pgstring  # 假设你封装了转换函数
+from celery import chord
+import psycopg2
+from psycopg2.extras import execute_batch
+from config.settings import load_config
 
 @celery_app.task(
     name="parse.file",
     bind=True,
     max_retries=3,
-    default_retry_delay=5,  # 每次重试间隔（秒）
     autoretry_for=(Exception,)
 )
 def parse_file_and_enqueue_chunks(self, file_path: str, ext: str, file_id: str):
+    logger = get_logger("parse_file_and_enqueue_chunks")
     try:
         if ext not in LOADER_MAP or ext not in SPLITTER_MAP:
             msg = f"暂不支持的文件类型: .{ext}"
             logger.warning(f"[{file_id}] {msg}")
             return {"status": "skipped", "reason": msg}
 
+        # ✅ 加载器 & 分段器
         loader = LOADER_MAP[ext]
         splitter = SPLITTER_MAP[ext]
 
@@ -33,109 +36,109 @@ def parse_file_and_enqueue_chunks(self, file_path: str, ext: str, file_id: str):
             msg = "文档内容为空，无法处理"
             logger.warning(f"[{file_id}] {msg}")
             return {"status": "skipped", "reason": msg}
-        chunks = splitter(docs)
 
+        chunks = splitter(docs)
         if not chunks:
             msg = "文档分段为空，跳过处理"
             logger.warning(f"[{file_id}] {msg}")
             return {"status": "skipped", "reason": msg}
 
-        # for idx, chunk in enumerate(chunks):
-        #     process_single_chunk_batch.delay(chunk.page_content, file_id, idx)
 
         for chunk in chunks:
-            process_single_chunk_batch.delay(chunk.page_content, file_id)
-
-        # for idx, chunk in enumerate(chunks):
-        #     chunk_text = chunk.page_content
-        #     chunk_uu_id = f"{file_id}_{idx}"  # 每段唯一标识
-        #     chunk_chain = chain(
-        #         generate_questions_task.s(chunk_text),
-        #         encode_questions_and_store.s(chunk_uu_id)
-        #     )
-        #     chunk_chain.apply_async()
+            # ✅ 每个 chunk 单独调度执行，无嵌套
+            build_chunk_chain(chunk.page_content, file_id).apply_async()
 
 
-        logger.info(f"[{file_id}] 成功提交 {len(chunks)} 个子任务")
-        return {"status": "ok", "chunks": len(chunks)}
+        return {"status": "dispatched", "chunks": len(chunks)}
 
-    except NonRetryableLoaderError as e:
-        logger.error(f"[{file_id}] 非重试异常，任务终止: {e}")
-        return {"status": "failed", "reason": str(e)}
+
     except Exception as e:
         logger.exception(f"[{file_id}] 文档处理异常: {e}")
         raise self.retry(exc=e)
 
-@celery_app.task(name="process.chunk.batch")
-def process_single_chunk_batch(text: str, file_id: str):
+    finally:
+        try:
+            os.remove(file_path)
+            logger.info(f"[{file_id}] 已删除临时文件: {file_path}")
+        except Exception as e:
+            logger.warning(f"[{file_id}] 临时文件删除失败: {e}")
+
+def build_chunk_chain(text: str, file_id: str):
+    return chain(
+        generate_questions_task.s(text),
+        encode_questions_and_store.s(file_id)
+    )
+
+
+@celery_app.task(name="encode_and_insert", bind=True, autoretry_for=(Exception,), max_retries=3)
+def encode_questions_and_store(self, questions: list, file_id: str):
+    logger = get_logger("encode_and_insert")
     try:
+        if not questions:
+            logger.warning(f"[{file_id}] 无问题生成，跳过编码与入库")
+            return "skipped"
 
-
-        # questions = generate_questions_task(text)
-        # if not questions:
-        #     return "无生成问题，跳过该段"
-
-        # uu_id_base = f"{file_id}_{chunk_index}"
-        task_chain = chain(
-            generate_questions_task.s(text),
-            encode_questions_and_store.s(file_id)
-        )
-        task_chain.apply_async()
-
-
-    except Exception as e:
-        return {"error": str(e)}
-
-
-
-# @celery_app.task(name="process.chunk.full")
-# def process_chunk_full(text: str, uu_id: str):
-#     return chain(
-#         generate_questions_task.s(text),
-#         encode_questions_chain.s(uu_id)
-#     ).apply_async()
-
-
-
-
-
-
-@celery_app.task(name="encode_and_insert")
-def encode_questions_and_store(questions: list, uu_id: str):
-    try:
-        # 创建 encode 子任务（只返回向量）
+        # 为每个问题创建 encode 向量化任务
         encode_jobs = [encode_text_task.s(q) for q in questions]
 
-        # 使用 group 计算所有向量，得到 list[vectors]
-        workflow = chain(
-            group(encode_jobs),  # 结果为 List[List[float]]
-            insert_ques_batch_task.s(questions, uu_id)  # 将原问题与向量一起传给下一步
+
+        logger.info(f"[{file_id}] ✉️ 已生成向量任务 chord，问题数: {len(questions)}")
+
+        return chord(encode_jobs)(
+            insert_ques_batch_task.s(questions=questions, uu_id=file_id)
         )
-        workflow.apply_async()
+    except Exception as e:
+        logger.exception(f"[{file_id}] 问题向量化任务失败: {e}")
+        raise self.retry(exc=e)
+
+
+
+
+@celery_app.task(name="insert.ques.batch", bind=True, autoretry_for=(Exception,), max_retries=3)
+def insert_ques_batch_task(self, vectors, *, questions, uu_id):
+    # questions = kwargs.get("questions")
+    # uu_id = kwargs.get("uu_id")
+    logger = get_logger("insert_ques_batch")
+    # logger.info(f"[{uu_id}] ✅ insert task 被调用")
+    # logger.info(f"[{uu_id}] 👀 vectors: {vectors}")
+    # logger.info(f"[{uu_id}] 👀 questions: {questions}")
+
+    try:
+        config = load_config()
+        db_cfg = config.wmx_database
+
+        conn = psycopg2.connect(
+            dbname=db_cfg.DB_NAME,
+            user=db_cfg.DB_USER,
+            password=db_cfg.DB_PASSWORD,
+            host=db_cfg.DB_HOST,
+            port=db_cfg.DB_PORT
+        )
+        cursor = conn.cursor()
+
+        sql = """
+            INSERT INTO wmx_ques (ori_sent_id, ori_ques_sent, ques_vector)
+            VALUES (%s, %s, %s)
+        """
+        data = [
+            (uu_id, q, vector_to_pgstring(v))
+            for q, v in zip(questions, vectors)
+        ]
+
+        execute_batch(cursor, sql, data)
+        conn.commit()
+        logger.info(f"[{uu_id}] ✅ 成功写入 {len(data)} 条问题向量")
 
     except Exception as e:
-        return {"error": str(e)}
+        logger.exception(f"[{uu_id}] ❌ 向量入库失败: {e}")
+        raise self.retry(exc=e)
+
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
 
 
 
-@celery_app.task(name="encode.questions.chain")
-def encode_questions_chain(questions: list, uu_id: str):
-    # if not questions:
-    #     return "跳过空问题"
-    #
-    # encode_group = group([encode_text_task.s(q) for q in questions])
-    # return chain(
-    #     encode_group,
-    #     insert_ques_batch_task.s(questions, uu_id)
-    # )
-
-    if not questions:
-        logger.warning(f"[{uu_id}] 空问题列表，使用原文作为伪问题")
-        questions = [uu_id]  # 或者你可以把 uu_id 作为问题标识
-
-    encode_group = group([encode_text_task.s(q) for q in questions])
-    return chain(
-        encode_group,
-        insert_ques_batch_task.s(sentences=questions, uu_id=uu_id)
-    )
 

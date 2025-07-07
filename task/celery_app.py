@@ -56,7 +56,7 @@ celery_app = Celery(
     include=[
         "task.gen_ques",
         "task.gen_vector_chain",
-        "task.db_interact",
+        # "task.db_interact",
         "task.file_parse_pipeline"
     ]
 )

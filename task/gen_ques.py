@@ -21,8 +21,9 @@ def split_questions(text):
     questions = [q.strip() for q in questions if q.strip()]
     return questions
 
-@celery_app.task(name="generate.questions")
-def generate_questions_task(text: str) -> list:
+@celery_app.task(name="generate.questions", bind=True, autoretry_for=(Exception,), max_retries=3)
+def generate_questions_task(self, text: str) -> list:
+    logger.info(f"⏱️ 任务入参: self={self}, args={text}")
     try:
         prompt = "根据内容给我形成针对该段落内容生成五个问题返回给我，其余什么多余信息都不要"
         completion = ali_client.chat.completions.create(

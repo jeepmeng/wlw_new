@@ -270,35 +270,66 @@ async def update_field_route(
 
 
 
+# @router.post("/upload")
+# async def upload_and_dispatch_files(data: FileBatchRequest):
+#     task_ids = []
+#
+#     for file in data.files:
+#         ext = file.filename.split(".")[-1].lower()
+#
+#         async with aiohttp.ClientSession() as session:
+#             async with session.get(file.url) as resp:
+#                 if resp.status != 200:
+#                     raise HTTPException(status_code=400, detail=f"下载失败: {file.filename}")
+#                 with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
+#                     tmp.write(await resp.read())
+#                     tmp.flush()
+#                     os.fsync(tmp.fileno())
+#                     tmp_path = tmp.name
+#
+#         # 构建任务链（这里只使用了一个任务,可继续添加）
+#         task_chain = chain(
+#             parse_file_and_enqueue_chunks.s(tmp_path, ext, file.file_id)
+#             # 如果你有其它收尾任务，比如状态更新、入库记录等，可以继续加到这里
+#         )
+#
+#         result = task_chain.apply_async()
+#         task_ids.append({
+#             "file_id": file.file_id,
+#             "task_id": result.id,   # chain 的 root id
+#             "filename": file.filename
+#         })
+#
+#     return {"msg": "上传任务已提交", "tasks": task_ids}
+
+
 @router.post("/upload")
 async def upload_and_dispatch_files(data: FileBatchRequest):
     task_ids = []
 
-    for file in data.files:
-        ext = file.filename.split(".")[-1].lower()
+    async with aiohttp.ClientSession() as session:
+        for file in data.files:
+            ext = file.filename.split(".")[-1].lower()
 
-        async with aiohttp.ClientSession() as session:
             async with session.get(file.url) as resp:
                 if resp.status != 200:
                     raise HTTPException(status_code=400, detail=f"下载失败: {file.filename}")
+
                 with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
                     tmp.write(await resp.read())
                     tmp.flush()
                     os.fsync(tmp.fileno())
                     tmp_path = tmp.name
 
-        # 构建任务链（这里只使用了一个任务，你可以继续加）
-        task_chain = chain(
-            parse_file_and_enqueue_chunks.s(tmp_path, ext, file.file_id)
-            # 如果你有其它收尾任务，比如状态更新、入库记录等，可以继续加到这里
-        )
+            # ✅ 构建任务链（此处 chain 最后执行）
+            task_chain = parse_file_and_enqueue_chunks.s(tmp_path, ext, file.file_id)
 
-        result = task_chain.apply_async()
-        task_ids.append({
-            "file_id": file.file_id,
-            "task_id": result.id,   # chain 的 root id
-            "filename": file.filename
-        })
+            result = task_chain.apply_async()
+            task_ids.append({
+                "file_id": file.file_id,
+                "task_id": result.id,
+                "filename": file.filename
+            })
 
     return {"msg": "上传任务已提交", "tasks": task_ids}
 
@@ -318,3 +349,5 @@ async def write_ques_batch(payload: WriteQuesBatch):
             await conn.executemany(sql, data)
 
     return {"status": "ok", "inserted": len(data)}
+
+
