@@ -71,19 +71,34 @@ def process_single_chunk_batch(text: str, file_id: str):
     try:
 
 
-        questions = generate_questions_task(text)
-        if not questions:
-            return "无生成问题，跳过该段"
+        # questions = generate_questions_task(text)
+        # if not questions:
+        #     return "无生成问题，跳过该段"
 
         # uu_id_base = f"{file_id}_{chunk_index}"
         task_chain = chain(
-            encode_questions_and_store.s(questions, file_id)
+            generate_questions_task.s(text),
+            encode_questions_and_store.s(file_id)
         )
         task_chain.apply_async()
 
 
     except Exception as e:
         return {"error": str(e)}
+
+
+
+# @celery_app.task(name="process.chunk.full")
+# def process_chunk_full(text: str, uu_id: str):
+#     return chain(
+#         generate_questions_task.s(text),
+#         encode_questions_chain.s(uu_id)
+#     ).apply_async()
+
+
+
+
+
 
 @celery_app.task(name="encode_and_insert")
 def encode_questions_and_store(questions: list, uu_id: str):
@@ -102,4 +117,25 @@ def encode_questions_and_store(questions: list, uu_id: str):
         return {"error": str(e)}
 
 
+
+@celery_app.task(name="encode.questions.chain")
+def encode_questions_chain(questions: list, uu_id: str):
+    # if not questions:
+    #     return "跳过空问题"
+    #
+    # encode_group = group([encode_text_task.s(q) for q in questions])
+    # return chain(
+    #     encode_group,
+    #     insert_ques_batch_task.s(questions, uu_id)
+    # )
+
+    if not questions:
+        logger.warning(f"[{uu_id}] 空问题列表，使用原文作为伪问题")
+        questions = [uu_id]  # 或者你可以把 uu_id 作为问题标识
+
+    encode_group = group([encode_text_task.s(q) for q in questions])
+    return chain(
+        encode_group,
+        insert_ques_batch_task.s(sentences=questions, uu_id=uu_id)
+    )
 
