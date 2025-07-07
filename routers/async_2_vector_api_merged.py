@@ -2,7 +2,8 @@ import asyncio
 import os
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from db_service.session import get_async_db
+# from db_service.session import get_async_db
+from db_service.pg_pool import pg_conn
 from db_service.db_search_service import async_query_similar_sentences, async_hybrid_search
 from utils.logger_manager import get_logger
 from redis import Redis
@@ -73,14 +74,31 @@ def submit_vector_task(item: VectorItem):
 
 
 # ✅ 轮询获取任务计算结果并执行向量查询
+# @router.get("/search/vector_search/{task_id}", response_model=ResponseModel)
+# async def get_vector_result(task_id: str, db: AsyncSession = Depends(get_async_db)):
+#     try:
+#         redis_key = f"vec_result:{task_id}"
+#         vec_json = redis_client.get(redis_key)
+#         if vec_json:
+#             text_vec = json.loads(vec_json)
+#             results = await async_query_similar_sentences(text_vec, db)
+#             return {"msg": "top-10 vector search", "data": {"results": results}}
+#         else:
+#             return {"msg": "任务未完成", "data": {"status": "PENDING"}}
+#     except Exception as e:
+#         logger.exception(f"获取向量结果失败，task_id={task_id}")
+#         return {"msg": "处理失败", "data": {"error": str(e)}}
+
 @router.get("/search/vector_search/{task_id}", response_model=ResponseModel)
-async def get_vector_result(task_id: str, db: AsyncSession = Depends(get_async_db)):
+async def get_vector_result(task_id: str):
     try:
         redis_key = f"vec_result:{task_id}"
         vec_json = redis_client.get(redis_key)
         if vec_json:
             text_vec = json.loads(vec_json)
-            results = await async_query_similar_sentences(text_vec, db)
+            async with pg_conn() as conn:
+                async with conn.transaction():
+                    results = await async_query_similar_sentences(text_vec, conn)
             return {"msg": "top-10 vector search", "data": {"results": results}}
         else:
             return {"msg": "任务未完成", "data": {"status": "PENDING"}}
@@ -97,14 +115,36 @@ async def get_vector_result(task_id: str, db: AsyncSession = Depends(get_async_d
 #     return {"msg": "任务创建成功", "data": {"task_id": task.id}}
 
 
+# @router.post("/vector/hybrid_search", response_model=ResponseModel)
+# async def submit_mix_task_blocking(
+#         item: VectorItem,
+#         db: AsyncSession = Depends(get_async_db),
+#         top_k: int = Query(15, ge=1),
+#         lambda_: float = Query(0.8, ge=0.0, le=1.0),
+#         timeout: int = Query(30, ge=1, le=60)
+# ):
+#     try:
+#         task = encode_text_task.delay(item.text)
+#         task_id = task.id
+#         redis_client.set(f"text:{task_id}", item.text, ex=3600)
+#
+#         start = time.time()
+#         while time.time() - start < timeout:
+#             vec_json = redis_client.get(f"vec_result:{task_id}")
+#             if vec_json:
+#                 vector = json.loads(vec_json)
+#                 results = await async_hybrid_search(item.text, vector, db, top_k=top_k, lambda_=lambda_)
+#                 return {"msg": "hybrid search result", "data": {"results": results}}
+#             await asyncio.sleep(1)
+#
+#         return {"msg": "等待超时，任务未完成", "data": {"task_id": task_id, "status": "TIMEOUT"}}
+#     except Exception as e:
+#         logger.exception("阻塞式混合搜索失败")
+#         return {"msg": "处理失败", "data": {"error": str(e)}}
+
+
 @router.post("/vector/hybrid_search", response_model=ResponseModel)
-async def submit_mix_task_blocking(
-        item: VectorItem,
-        db: AsyncSession = Depends(get_async_db),
-        top_k: int = Query(15, ge=1),
-        lambda_: float = Query(0.8, ge=0.0, le=1.0),
-        timeout: int = Query(30, ge=1, le=60)
-):
+async def submit_mix_task_blocking(item: VectorItem, top_k: int = Query(15, ge=1), lambda_: float = Query(0.8, ge=0.0, le=1.0), timeout: int = Query(30, ge=1, le=60)):
     try:
         task = encode_text_task.delay(item.text)
         task_id = task.id
@@ -115,7 +155,9 @@ async def submit_mix_task_blocking(
             vec_json = redis_client.get(f"vec_result:{task_id}")
             if vec_json:
                 vector = json.loads(vec_json)
-                results = await async_hybrid_search(item.text, vector, db, top_k=top_k, lambda_=lambda_)
+                async with pg_conn() as conn:
+                    async with conn.transaction():
+                        results = await async_hybrid_search(item.text, vector, conn, top_k=top_k, lambda_=lambda_)
                 return {"msg": "hybrid search result", "data": {"results": results}}
             await asyncio.sleep(1)
 
@@ -125,14 +167,34 @@ async def submit_mix_task_blocking(
         return {"msg": "处理失败", "data": {"error": str(e)}}
 
 
+
 # ✅ 查询混合搜索结果（支持可选参数）
+# @router.get("/vector/hybrid_search/{task_id}", response_model=ResponseModel)
+# async def get_hybrid_search_result(
+#         task_id: str,
+#         db: AsyncSession = Depends(get_async_db),
+#         top_k: int = Query(15, ge=1),
+#         lambda_: float = Query(0.8, ge=0.0, le=1.0)
+# ):
+#     try:
+#         vec_json = redis_client.get(f"vec_result:{task_id}")
+#         query_text = redis_client.get(f"text:{task_id}")
+#
+#         if not vec_json or not query_text:
+#             return {"msg": "任务未完成", "data": {"status": "PENDING"}}
+#
+#         vector = json.loads(vec_json)
+#         text = query_text.decode()
+#         results = await async_hybrid_search(text, vector, db, top_k=top_k, lambda_=lambda_)
+#         return {"msg": "hybrid search result", "data": {"results": results}}
+#     except Exception as e:
+#         logger.exception(f"获取混合搜索结果失败，task_id={task_id}")
+#         return {"msg": "处理失败", "data": {"error": str(e)}}
+
+
+
 @router.get("/vector/hybrid_search/{task_id}", response_model=ResponseModel)
-async def get_hybrid_search_result(
-        task_id: str,
-        db: AsyncSession = Depends(get_async_db),
-        top_k: int = Query(15, ge=1),
-        lambda_: float = Query(0.8, ge=0.0, le=1.0)
-):
+async def get_hybrid_search_result(task_id: str, top_k: int = Query(15, ge=1), lambda_: float = Query(0.8, ge=0.0, le=1.0)):
     try:
         vec_json = redis_client.get(f"vec_result:{task_id}")
         query_text = redis_client.get(f"text:{task_id}")
@@ -142,11 +204,15 @@ async def get_hybrid_search_result(
 
         vector = json.loads(vec_json)
         text = query_text.decode()
-        results = await async_hybrid_search(text, vector, db, top_k=top_k, lambda_=lambda_)
+
+        async with pg_conn() as conn:
+            async with conn.transaction():
+                results = await async_hybrid_search(text, vector, conn, top_k=top_k, lambda_=lambda_)
         return {"msg": "hybrid search result", "data": {"results": results}}
     except Exception as e:
         logger.exception(f"获取混合搜索结果失败，task_id={task_id}")
         return {"msg": "处理失败", "data": {"error": str(e)}}
+
 
 
 @router.post("/db/insert_vector", response_model=ResponseModel)
@@ -248,6 +314,7 @@ async def write_ques_batch(payload: WriteQuesBatch):
     ]
     sql = "INSERT INTO wmx_ques (ori_sent_id, ori_ques_sent, ques_vector) VALUES ($1, $2, $3)"
     async with pg_conn() as conn:
-        await conn.executemany(sql, data)
+        async with conn.transaction():
+            await conn.executemany(sql, data)
 
     return {"status": "ok", "inserted": len(data)}

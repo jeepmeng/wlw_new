@@ -70,21 +70,21 @@ celery_app.conf.update(
     enable_utc=False
 )
 
-# ✅ 推荐初始化 PG 的方式：异步线程防止事件循环冲突
-from db_service.pg_pool import init_pg_pool
-
-@celery_app.on_after_finalize.connect
-def setup_pg_pool_after_worker_start(sender, **kwargs):
-    import threading
-    import asyncio
-
-    def runner():
-        try:
-            asyncio.run(init_pg_pool())
-        except Exception as e:
-            print(f"⚠️ PG初始化失败: {e}")
-
-    threading.Thread(target=runner).start()
+# # ✅ 推荐初始化 PG 的方式：异步线程防止事件循环冲突
+# from db_service.pg_pool import init_pg_pool
+#
+# @celery_app.on_after_finalize.connect
+# def setup_pg_pool_after_worker_start(sender, **kwargs):
+#     import threading
+#     import asyncio
+#
+#     def runner():
+#         try:
+#             asyncio.run(init_pg_pool())
+#         except Exception as e:
+#             print(f"⚠️ PG初始化失败: {e}")
+#
+#     threading.Thread(target=runner).start()
 
 # ✅ 可选: 支持命令行直接运行调试
 if __name__ == "__main__":

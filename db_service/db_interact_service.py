@@ -14,8 +14,10 @@ async def insert_vectors_to_db(
     INSERT INTO m_zhisk_results (zhisk_file_id, content, create_time, vector, ori_json, code, category, uu_id)
     VALUES ($1, $2, now(), $3, $4, $5, $6, $7)
     """
+
     async with pg_conn() as conn:
-        await conn.execute(sql, zhisk_file_id, content, vector_str, json_str, code, category, str(uu_id))
+        async with conn.transaction():
+            await conn.execute(sql, zhisk_file_id, content, vector_str, json_str, code, category, str(uu_id))
 
 
 async def insert_ques_batch(
@@ -27,7 +29,8 @@ async def insert_ques_batch(
     ]
     sql = "INSERT INTO wmx_ques (ori_sent_id, ori_ques_sent, ques_vector) VALUES ($1, $2, $3)"
     async with pg_conn() as conn:
-        await conn.executemany(sql, data)
+        async with conn.transaction():
+            await conn.executemany(sql, data)
 
 
 async def update_by_id(
@@ -43,7 +46,8 @@ async def update_by_id(
     update_sql = f"UPDATE m_zhisk_results SET {set_clause} WHERE id = ${len(values)}"
 
     async with pg_conn() as conn:
-        await conn.execute(update_sql, *values)
+        async with conn.transaction():
+            await conn.execute(update_sql, *values)
 
         # 获取 uu_id
         row = await conn.fetchrow("SELECT uu_id FROM m_zhisk_results WHERE id = $1", record_id)
@@ -61,4 +65,5 @@ async def update_field_by_id(
 ):
     sql = f"UPDATE {table_name} SET {field_name} = $1 WHERE id = $2"
     async with pg_conn() as conn:
-        await conn.execute(sql, new_value, record_id)
+        async with conn.transaction():
+            await conn.execute(sql, new_value, record_id)
