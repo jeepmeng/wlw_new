@@ -30,7 +30,6 @@ from routers.schema import (
 import aiohttp
 import tempfile
 from task.file_parse_pipeline import parse_file_and_enqueue_chunks
-# router/async_vector_api.py
 from utils.task_utils import submit_vector_task_with_option
 from celery import chain
 from db_service.pg_pool import pg_conn
