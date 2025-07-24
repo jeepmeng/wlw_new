@@ -3,7 +3,6 @@ import os
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 # from db_service.session import get_async_db
-from db_service.pg_pool import pg_conn
 from db_service.db_search_service import async_query_similar_sentences, async_hybrid_search
 from utils.logger_manager import get_logger
 from redis import Redis

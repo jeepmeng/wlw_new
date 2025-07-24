@@ -66,29 +66,54 @@ def parse_file_and_enqueue_chunks(self, file_path: str, ext: str, file_id: str):
 def build_chunk_chain(text: str, file_id: str):
     return chain(
         generate_questions_task.s(text),
-        encode_questions_and_store.s(file_id)
+        encode_questions_and_store.s(file_id=file_id)
     )
 
 
-@celery_app.task(name="encode_and_insert", bind=True, autoretry_for=(Exception,), max_retries=3)
+# @celery_app.task(name="encode_and_insert", bind=True, autoretry_for=(Exception,), max_retries=3)
+# def encode_questions_and_store(self, questions: list, file_id: str):
+#     logger = get_logger("encode_and_insert")
+#     try:
+#         if not questions:
+#             logger.warning(f"[{file_id}] 无问题生成，跳过编码与入库")
+#             return "skipped"
+#
+#         # 为每个问题创建 encode 向量化任务
+#         encode_jobs = [encode_text_task.s(q) for q in questions]
+#
+#
+#         logger.info(f"[{file_id}] ✉️ 已生成向量任务 chord，问题数: {len(questions)}")
+#
+#         return chord(encode_jobs)(
+#             insert_ques_batch_task.s(questions=questions, uu_id=file_id)
+#         )
+#     except Exception as e:
+#         logger.exception(f"[{file_id}] 问题向量化任务失败: {e}")
+#         raise self.retry(exc=e)
+
+
+
+
+@celery_app.task(name="encode_and_insert_each", bind=True, autoretry_for=(Exception,), max_retries=3)
 def encode_questions_and_store(self, questions: list, file_id: str):
-    logger = get_logger("encode_and_insert")
+    logger = get_logger("encode_and_insert_each")
     try:
         if not questions:
             logger.warning(f"[{file_id}] 无问题生成，跳过编码与入库")
             return "skipped"
 
-        # 为每个问题创建 encode 向量化任务
-        encode_jobs = [encode_text_task.s(q) for q in questions]
+        for question in questions:
+            chain(
+                encode_text_task.s(question),
+                wrap_vector_as_list.s(),
+                insert_ques_batch_task.s(questions=[question], uu_id=file_id)
+            ).apply_async()
 
+        logger.info(f"[{file_id}] ✅ 共调度 {len(questions)} 条 encode→insert 子任务链")
+        return f"dispatched {len(questions)} tasks"
 
-        logger.info(f"[{file_id}] ✉️ 已生成向量任务 chord，问题数: {len(questions)}")
-
-        return chord(encode_jobs)(
-            insert_ques_batch_task.s(questions=questions, uu_id=file_id)
-        )
     except Exception as e:
-        logger.exception(f"[{file_id}] 问题向量化任务失败: {e}")
+        logger.exception(f"[{file_id}] encode+insert 任务链调度失败: {e}")
         raise self.retry(exc=e)
 
 
@@ -104,6 +129,10 @@ def insert_ques_batch_task(self, vectors, *, questions, uu_id):
     # logger.info(f"[{uu_id}] 👀 questions: {questions}")
 
     try:
+        # ✅ 修复核心 bug：包装单个向量为二维 list
+        if not isinstance(vectors[0], (list, tuple)):
+            vectors = [vectors]
+
         config = load_config()
         db_cfg = config.wmx_database
 
@@ -139,6 +168,7 @@ def insert_ques_batch_task(self, vectors, *, questions, uu_id):
         if 'conn' in locals():
             conn.close()
 
-
-
+@celery_app.task(name="wrap.vector")
+def wrap_vector_as_list(vec):
+    return [vec]
 
