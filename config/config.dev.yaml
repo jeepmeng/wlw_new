@@ -22,6 +22,8 @@ vector_service:
 
 elasticsearch:
   host: "http://127.0.0.1:9200"
+  knowledge_base: "zhisk_results"
+  question_base: "wmx_ques"
   username: "elastic"       # 若无需认证，可为空
   password: "wlw123456"       # 若需加密访问，可以加密
   indexes:
@@ -34,3 +36,9 @@ task_defaults:
   store_flags: ["es"]   # 控制写入目标，示例 tore_flags: ["pg", "es"]
   pg_enable: false
   es_enable: true
+
+
+
+deepseek:
+  api_key: "sk-3aad58df7dc442b6995921263f6c953f"
+  base_url: "https://api.deepseek.com"

@@ -1,6 +1,6 @@
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel,HttpUrl
-
+from uuid import UUID
 
 # ✅ 请求数据模型
 class VectorItem(BaseModel):
@@ -52,9 +52,42 @@ class FileBatchRequest(BaseModel):
 
 
 
-
-
 class WriteQuesBatch(BaseModel):
     uu_id: str
     sentences: list[str]
     vectors: list[list[float]]
+
+
+
+class SearchRequest(BaseModel):
+    query: str
+    use_bm25: bool = True
+    use_vector: bool = True
+    alpha: float = 0.6  # 权重
+
+
+class ScoreDetail(BaseModel):
+    bm25: float
+    vector: float
+
+class SearchResult(BaseModel):
+    id: str
+    content: str
+    score: float
+    score_detail: Dict[str, float]
+    source: str  # "hybrid", "bm25", "vector"
+
+
+
+class StartDialogRequest(BaseModel):
+    user_id: str
+    title: Optional[str] = None
+
+class AskRequest(BaseModel):
+    user_id: str
+    question: str
+
+class ControlRequest(BaseModel):
+    user_id: str
+    action: str  # stop | pause | resume | resend
+    message_id: Optional[UUID] = None

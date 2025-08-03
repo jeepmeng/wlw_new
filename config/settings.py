@@ -38,6 +38,8 @@ class ESIndexConfig(BaseModel):
 # ✅ Elasticsearch 主配置
 class ESConfig(BaseModel):
     host: str
+    knowledge_base: str
+    question_base: str
     username: str = "elastic"
     password: str = "wlw123456"
     indexes: ESIndexConfig
