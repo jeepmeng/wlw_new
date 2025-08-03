@@ -37,7 +37,9 @@ task_defaults:
   pg_enable: false
   es_enable: true
 
-
+session_cache:
+  redis_url: redis://localhost:6379/2
+  expire_seconds: 3600
 
 deepseek:
   api_key: "sk-3aad58df7dc442b6995921263f6c953f"

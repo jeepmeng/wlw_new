@@ -27,7 +27,9 @@ class VectorConfig(BaseModel):
     redis_broker: str
     redis_backend: str
 
-
+class SessionCacheConfig(BaseModel):
+    redis_url: str
+    expire_seconds: int
 
 # Elasticsearch 索引名配置
 class ESIndexConfig(BaseModel):
@@ -51,7 +53,9 @@ class TaskDefaults(BaseModel):
     es_enable: bool = True
 
 
-
+class Deepseek(BaseModel):
+    api_key: str
+    base_url: str
 
 # ✅ 顶层配置结构
 class Settings(BaseModel):
@@ -60,6 +64,8 @@ class Settings(BaseModel):
     vector_service: VectorConfig
     elasticsearch: ESConfig
     task_defaults: TaskDefaults
+    deepseek: Deepseek
+    session_cache: SessionCacheConfig
 
 # ✅ 配置加载函数
 def load_config() -> Settings:
