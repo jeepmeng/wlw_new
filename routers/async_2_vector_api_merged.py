@@ -28,11 +28,12 @@ from routers.schema import (
 )
 import aiohttp
 import tempfile
-from task.file_parse_pipeline import parse_file_and_enqueue_chunks
+from task.file_parse_pipeline_new import parse_file_and_enqueue_chunks
 from utils.task_utils import submit_vector_task_with_option
 from celery import chain
 from db_service.pg_pool import pg_conn
-
+from celery.result import AsyncResult
+from task.celery_app import celery_app
 router = APIRouter()
 # logger = setup_logger("async_vector_api")
 logger = get_logger("router_async_vector_api")
@@ -319,8 +320,12 @@ async def upload_and_dispatch_files(data: FileBatchRequest):
                     os.fsync(tmp.fileno())
                     tmp_path = tmp.name
 
-            # ✅ 构建任务链（此处 chain 最后执行）
-            task_chain = parse_file_and_enqueue_chunks.s(tmp_path, ext, file.file_id)
+            # ✅ 不再构造 store_target，任务内部使用 settings.task_defaults 控制
+            task_chain = parse_file_and_enqueue_chunks.s(
+                tmp_path,
+                ext,
+                create_by=file.user_id  # ✅ 保留 user_id 字段用于审计
+            )
 
             result = task_chain.apply_async()
             task_ids.append({
@@ -331,7 +336,15 @@ async def upload_and_dispatch_files(data: FileBatchRequest):
 
     return {"msg": "上传任务已提交", "tasks": task_ids}
 
-
+@router.get("/task_status/{task_id}")
+def get_task_status(task_id: str):
+    result = AsyncResult(task_id, app=celery_app)
+    return {
+        "task_id": task_id,
+        "status": result.status,  # PENDING, STARTED, SUCCESS, FAILURE, RETRY
+        "result": result.result if result.successful() else None,
+        "error": str(result.result) if result.failed() else None
+    }
 @router.post("/db/write-ques-batch")
 async def write_ques_batch(payload: WriteQuesBatch):
     if len(payload.sentences) != len(payload.vectors):

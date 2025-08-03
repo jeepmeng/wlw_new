@@ -57,7 +57,7 @@ celery_app = Celery(
         "task.gen_ques",
         "task.gen_vector_chain",
         # "task.db_interact",
-        "task.file_parse_pipeline"
+        "task.file_parse_pipeline_new"
     ]
 )
 
@@ -70,7 +70,7 @@ celery_app.conf.update(
     enable_utc=False
 )
 
-# # ✅ 推荐初始化 PG 的方式：异步线程防止事件循环冲突
+# # ✅ 推荐初始化 pg_fun 的方式：异步线程防止事件循环冲突
 # from db_service.pg_pool import init_pg_pool
 #
 # @celery_app.on_after_finalize.connect

@@ -17,3 +17,20 @@ vector_service:
   port: 8001
   redis_broker: "redis://127.0.0.1:6379/0"
   redis_backend: "redis://127.0.0.1:6379/1"
+
+
+
+elasticsearch:
+  host: "http://127.0.0.1:9200"
+  username: "elastic"       # 若无需认证，可为空
+  password: "wlw123456"       # 若需加密访问，可以加密
+  indexes:
+    file_index: "zhisk_files"
+    chunk_index: "zhisk_results"
+    ques_index: "wmx_ques"
+
+
+task_defaults:
+  store_flags: ["es"]   # 控制写入目标，示例 tore_flags: ["pg", "es"]
+  pg_enable: false
+  es_enable: true

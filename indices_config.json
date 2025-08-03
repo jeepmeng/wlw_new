@@ -1,0 +1,27 @@
+{
+    "my_index_1": {
+      "mappings": {
+        "properties": {
+          "title": {
+            "type": "text",
+            "analyzer": "standard"
+          },
+          "create_time": {
+            "type": "date"
+          }
+        }
+      }
+    },
+    "my_index_2": {
+      "mappings": {
+        "properties": {
+          "content": {
+            "type": "text"
+          },
+          "count": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }

@@ -44,6 +44,7 @@ class FileMeta(BaseModel):
     url: str
     filename: str
     file_id: str
+    user_id: str
 
 class FileBatchRequest(BaseModel):
     files: List[FileMeta]

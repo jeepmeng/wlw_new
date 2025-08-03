@@ -1,3 +1,4 @@
+from typing import List, Optional
 from pydantic import BaseModel
 import yaml
 import os
@@ -26,11 +27,37 @@ class VectorConfig(BaseModel):
     redis_broker: str
     redis_backend: str
 
+
+
+# Elasticsearch 索引名配置
+class ESIndexConfig(BaseModel):
+    file_index: str
+    chunk_index: str
+    ques_index: str
+
+# ✅ Elasticsearch 主配置
+class ESConfig(BaseModel):
+    host: str
+    username: str = "elastic"
+    password: str = "wlw123456"
+    indexes: ESIndexConfig
+
+
+class TaskDefaults(BaseModel):
+    store_flags: List[str] = ["pg", "es"]
+    pg_enable: bool = True
+    es_enable: bool = True
+
+
+
+
 # ✅ 顶层配置结构
 class Settings(BaseModel):
     env: str
     wmx_database: DBConfig
     vector_service: VectorConfig
+    elasticsearch: ESConfig
+    task_defaults: TaskDefaults
 
 # ✅ 配置加载函数
 def load_config() -> Settings:

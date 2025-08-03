@@ -131,7 +131,7 @@ if __name__ == "__main__":
     }
     
     # Elasticsearch主机
-    ES_HOST = "http://172.16.19.242:9200"
+    ES_HOST = "http://127.0.0.1:9200"
     
     # 索引名称
     INDEX_NAME = "m_talk_record"  # 替换为实际的索引名称
