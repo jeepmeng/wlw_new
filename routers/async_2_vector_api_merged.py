@@ -305,3 +305,5 @@ async def delete_files(zhisk_file_ids: List[str]):
         await delete_doc(FILE_INDEX, file_id)
 
     return {"deleted_files": zhisk_file_ids}
+
+
