@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # from db_service.session import get_async_db
 # from db_service.db_search_service import async_query_similar_sentences, async_hybrid_search
 from elasticsearch import AsyncElasticsearch
+from elasticsearch.helpers import async_bulk
 from task.es_fun.search_engine import search_bm25, search_vector, merge_results
 from utils.logger_manager import get_logger
 from redis import Redis
@@ -20,6 +21,17 @@ from db_service.db_interact_service import (
     update_by_id,
     update_field_by_id
 )
+
+from task.es_fun.es_updata import (
+    update_chunk_in_es,
+    delete_questions_by_chunk,
+    generate_questions_by_llm,
+    encode_questions_to_vectors,
+    bulk_insert_questions,
+    encode_single_question,
+    update_question_in_es
+)
+
 from routers.schema import (
     VectorItem,
     ResponseModel,
@@ -29,7 +41,9 @@ from routers.schema import (
     FileBatchRequest,
     WriteQuesBatch,
     SearchRequest,
-    SearchResult
+    SearchResult,
+    ChunkUpdateRequest,
+    QuestionUpdateRequest
 )
 import aiohttp
 import tempfile
@@ -307,3 +321,43 @@ async def delete_files(zhisk_file_ids: List[str]):
     return {"deleted_files": zhisk_file_ids}
 
 
+
+
+
+@router.post("/update/chunk")
+async def update_chunk_and_questions(data: ChunkUpdateRequest):
+    try:
+        # 1. 更新 chunk 内容
+        await update_chunk_in_es(data.chunk_id, data.new_content, data.update_by)
+
+        # 2. 删除旧问题
+        await delete_questions_by_chunk(data.chunk_id)
+
+        # 3. 生成新问题
+        questions = await generate_questions_by_llm(data.new_content)
+
+        # 4. 向量化
+        vectors = await encode_questions_to_vectors(questions)
+
+        # 5. 批量写入
+        await bulk_insert_questions(data.chunk_id, questions, vectors)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return {"msg": "chunk 和问题更新成功"}
+
+
+@router.post("/update/question")
+async def update_question_and_vector(data: QuestionUpdateRequest):
+    try:
+        # 1. 向量化
+        vector = await encode_single_question(data.new_question)
+
+        # 2. 更新 ES 中的内容和向量
+        await update_question_in_es(data.question_id, data.new_question, vector)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return {"msg": "问题与向量更新成功"}

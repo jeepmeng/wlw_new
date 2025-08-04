@@ -91,3 +91,15 @@ class ControlRequest(BaseModel):
     user_id: str
     action: str  # stop | pause | resume | resend
     message_id: Optional[UUID] = None
+
+
+
+class ChunkUpdateRequest(BaseModel):
+    chunk_id: str
+    new_content: str
+    update_by: str  # 新增字段
+
+
+class QuestionUpdateRequest(BaseModel):
+    question_id: str
+    new_question: str
