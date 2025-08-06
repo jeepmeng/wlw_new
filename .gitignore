@@ -8,3 +8,4 @@ search.py
 talk_insert_pg.py
 __pycache__/
 *.pyc
+/logs/
