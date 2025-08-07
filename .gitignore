@@ -6,5 +6,6 @@ ori_main.py
 pg_interact.py
 search.py
 talk_insert_pg.py
-/logs/
 __pycache__/
+*.pyc
+/logs/
