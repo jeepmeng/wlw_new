@@ -290,12 +290,34 @@ async def delete_questions(question_ids: List[str]):
 
 # ========== 删除 chunk（及其问题） ==========
 @router.delete("/delete/chunk")
-async def delete_chunks(chunk_uuids: List[str]):
-    for uuid in chunk_uuids:
-        # 删除下属问题
-        await delete_by_term(QUES_INDEX, "ori_sent_id", uuid)
-    await delete_by_terms(CHUNK_INDEX, "uu_id", chunk_uuids)
-    return {"deleted_chunks": chunk_uuids}
+# async def delete_chunks(chunk_uuids: List[str]):
+#     for uuid in chunk_uuids:
+#         # 删除下属问题
+#         await delete_by_term(QUES_INDEX, "ori_sent_id", uuid)
+#     await delete_by_terms(CHUNK_INDEX, "zhisk_file_id", chunk_uuids)
+#     return {"deleted_chunks": chunk_uuids}
+async def delete_chunks(chunk_ids: List[str]):
+    # 查出 chunk 文档，提取其 uu_id
+    resp = await es.search(
+        index=CHUNK_INDEX,
+        query={"ids": {"values": chunk_ids}},
+        size=len(chunk_ids),
+        _source=["uu_id"]
+    )
+
+    chunk_uuids = [hit["_source"]["uu_id"] for hit in resp["hits"]["hits"] if "uu_id" in hit["_source"]]
+
+    # 删除问题（问题表中 ori_sent_id = chunk uu_id）
+    if chunk_uuids:
+        await delete_by_terms(QUES_INDEX, "ori_sent_id", chunk_uuids)
+
+    # 删除 chunk 本身（按 _id）
+    await delete_by_terms(CHUNK_INDEX, "_id", chunk_ids)
+
+    return {
+        "deleted_chunks": chunk_ids,
+        "related_question_uuids": chunk_uuids
+    }
 
 
 # ========== 删除文件（及其 chunk 和问题） ==========

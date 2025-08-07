@@ -70,8 +70,8 @@ async def update_question_in_es(question_id: str, new_question: str, vector: lis
     await es.update(
         index=settings.elasticsearch.indexes.ques_index,
         id=question_id,
-        doc={"doc": {
+        doc={
             "ori_ques_sent": new_question,
             "ques_vector": vector
-        }}
+        }
     )
