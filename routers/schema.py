@@ -1,5 +1,5 @@
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel,HttpUrl
+from pydantic import BaseModel,HttpUrl, Field
 from uuid import UUID
 
 # ✅ 请求数据模型
@@ -103,3 +103,20 @@ class ChunkUpdateRequest(BaseModel):
 class QuestionUpdateRequest(BaseModel):
     question_id: str
     new_question: str
+
+
+
+
+class QueryZhiskFilesRequest(BaseModel):
+    page: int = Field(default=1, ge=1, description="当前页码，从1开始")
+    page_size: int = Field(default=10, ge=1, le=100, description="每页数据条数")
+    sort_field: Optional[str] = Field(default="create_time", description="排序字段")
+    sort_order: Optional[str] = Field(default="desc", description="排序方式：asc 或 desc")
+
+
+class QueryByFileIdRequest(BaseModel):
+    zhisk_file_id: str = Field(..., description="目标文件对应的 zhisk_file_id")
+
+
+class UUIDQueryRequest(BaseModel):
+    uuids: List[str] = Field(..., description="待查询记录的 UUID 列表")

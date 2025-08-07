@@ -3,7 +3,7 @@ from fastapi import FastAPI
 # from routers.async_vector_api import router as async_vector_router
 from routers.async_2_vector_api_merged import router as async_vector_router
 from routers.dialog_routers import router as dialog_routers
-
+from routers.search_api import router as search_router
 app = FastAPI()
 
 # @app.on_event("startup")
@@ -17,7 +17,7 @@ app = FastAPI()
 
 app.include_router(async_vector_router)
 app.include_router(dialog_routers)
-# app.include_router(router)
+app.include_router(search_router)
 
 if __name__ == "__main__":
     import uvicorn
