@@ -9,7 +9,8 @@ def build_file_meta(
     file_path: str,
     file_type: str,
     zhisk_rows: int,
-    create_by: str
+    create_by: str,
+    original_name=None
 ) -> dict:
     """
     构造用于 Elasticsearch 写入的文件元信息结构
@@ -24,8 +25,8 @@ def build_file_meta(
     file = Path(file_path)
     return {
         "zhisk_file_id": zhisk_file_id,
-        "file_name": f"{datetime.now():%Y/%m/%d}/{file.name}",
-        "original_name": file.name,
+        "file_name": f"{datetime.now():%Y/%m/%d}/{original_name}",
+        "original_name": original_name,
         "file_type": file_type,
         "file_size": round(os.path.getsize(file_path) / 1024, 2),  # 单位：KB
         "zhisk_rows": zhisk_rows,

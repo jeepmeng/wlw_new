@@ -215,7 +215,8 @@ async def upload_and_dispatch_files(data: FileBatchRequest):
             task_chain = parse_file_and_enqueue_chunks.s(
                 tmp_path,
                 ext,
-                create_by=file.user_id  # ✅ 保留 user_id 字段用于审计
+                create_by=file.user_id,  # ✅ 保留 user_id 字段用于审计
+                original_name = file.filename,
             )
 
             result = task_chain.apply_async()

@@ -38,7 +38,7 @@ index_ques = es_cfg.indexes.ques_index
     max_retries=3,
     autoretry_for=(Exception,)
 )
-def parse_file_and_enqueue_chunks(self, file_path: str, ext: str, create_by: str):
+def parse_file_and_enqueue_chunks(self, file_path: str, ext: str, create_by: str, original_name: str):
     logger = get_logger("parse_file_and_enqueue_chunks")
     try:
         if ext not in LOADER_MAP or ext not in SPLITTER_MAP:
@@ -76,7 +76,7 @@ def parse_file_and_enqueue_chunks(self, file_path: str, ext: str, create_by: str
 
         if use_es:
             logger.info(f"[ES] 正在写入文件元信息到索引: {index_file}")
-            file_meta = build_file_meta(zhisk_file_id, file_path, ext, len(chunks), create_by)
+            file_meta = build_file_meta(zhisk_file_id, file_path, ext, len(chunks), create_by, original_name)
             insert_file_meta_to_es(index_file, file_meta)
 
         for chunk in chunks:
