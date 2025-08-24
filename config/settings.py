@@ -57,6 +57,11 @@ class Deepseek(BaseModel):
     api_key: str
     base_url: str
 
+class QwenConfig(BaseModel):
+    api_key: str
+    model: str = "qwen-plus"
+
+
 # ✅ 顶层配置结构
 class Settings(BaseModel):
     env: str
@@ -66,6 +71,8 @@ class Settings(BaseModel):
     task_defaults: TaskDefaults
     deepseek: Deepseek
     session_cache: SessionCacheConfig
+    qwen: QwenConfig
+
 
 # ✅ 配置加载函数
 def load_config() -> Settings:

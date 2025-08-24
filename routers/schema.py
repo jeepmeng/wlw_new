@@ -82,10 +82,13 @@ class SearchResult(BaseModel):
 class StartDialogRequest(BaseModel):
     user_id: str
     title: Optional[str] = None
+    provider: Optional[str] = "deepseek"
 
 class AskRequest(BaseModel):
     user_id: str
     question: str
+    provider: Optional[str] = "deepseek"  # "deepseek" | "qwen"
+    enable_search: Optional[bool] = True  # 仅对 qwen 生效
 
 class ControlRequest(BaseModel):
     user_id: str

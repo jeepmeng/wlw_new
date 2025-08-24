@@ -44,3 +44,8 @@ session_cache:
 deepseek:
   api_key: "sk-3aad58df7dc442b6995921263f6c953f"
   base_url: "https://api.deepseek.com"
+
+
+qwen:
+  api_key: "sk-e8d4973beecd4a43bdce4718b0b2444c"
+  model: "qwen-plus"
