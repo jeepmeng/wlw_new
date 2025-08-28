@@ -1,0 +1,106 @@
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
+from elasticsearch import AsyncElasticsearch
+from typing import Optional
+from sensitive.sensitive_filter_ac import SensitiveFilterAC
+
+router = APIRouter(prefix="/admin/sensitive", tags=["sensitive-admin"])
+
+class TermIn(BaseModel):
+    term: str
+    category: str = "default"
+    is_active: bool = True
+    norm: Optional[str] = None
+    severity: Optional[int] = None
+    source: Optional[str] = None
+
+def get_es(request: Request) -> AsyncElasticsearch:
+    es = getattr(request.app.state, "es", None)
+    if es is None:
+        raise HTTPException(500, "ES not initialized")
+    return es
+
+def get_sf(request: Request) -> SensitiveFilterAC:
+    sf = getattr(request.app.state, "sf", None)
+    if sf is None:
+        raise HTTPException(500, "Sensitive filter not initialized")
+    return sf
+
+def get_index_name(request: Request) -> str:
+    idx = getattr(request.app.state, "sensitive_index", None)
+    if not idx:
+        raise HTTPException(500, "Index name not set")
+    return idx
+
+def get_ignore_case(request: Request) -> bool:
+    return bool(getattr(request.app.state, "ignore_case", False))
+
+@router.post("/terms")
+async def add_term(body: TermIn,
+                   es: AsyncElasticsearch = Depends(get_es),
+                   sf: SensitiveFilterAC = Depends(get_sf),
+                   index_name: str = Depends(get_index_name),
+                   ignore_case: bool = Depends(get_ignore_case)):
+    doc = body.model_dump()
+    doc.setdefault("term_text", doc["term"])
+    if ignore_case and not doc.get("norm"):
+        doc["norm"] = doc["term"].lower()
+    doc.setdefault("updated_at", "now")
+    resp = await es.index(index=index_name, document=doc, refresh="wait_for")
+    n = await sf.refresh()
+    return {"ok": True, "id": resp["_id"], "count": n, "version": sf.version_tag}
+
+@router.put("/terms/{doc_id}")
+async def update_term(doc_id: str, body: TermIn,
+                      es: AsyncElasticsearch = Depends(get_es),
+                      sf: SensitiveFilterAC = Depends(get_sf),
+                      index_name: str = Depends(get_index_name),
+                      ignore_case: bool = Depends(get_ignore_case)):
+    doc = body.model_dump()
+    doc["term_text"] = doc["term"]
+    if ignore_case and not doc.get("norm"):
+        doc["norm"] = doc["term"].lower()
+    doc["updated_at"] = "now"
+    await es.update(index=index_name, id=doc_id, doc=doc, refresh="wait_for")
+    n = await sf.refresh()
+    return {"ok": True, "id": doc_id, "count": n, "version": sf.version_tag}
+
+@router.delete("/terms/{doc_id}")
+async def delete_term(doc_id: str,
+                      es: AsyncElasticsearch = Depends(get_es),
+                      sf: SensitiveFilterAC = Depends(get_sf),
+                      index_name: str = Depends(get_index_name)):
+    await es.update(index=index_name, id=doc_id, doc={"is_active": False, "updated_at": "now"}, refresh="wait_for")
+    n = await sf.refresh()
+    return {"ok": True, "id": doc_id, "count": n, "version": sf.version_tag}
+
+@router.get("/terms")
+async def list_terms(from_: int = Query(0, alias="from"), size: int = Query(50, ge=1, le=500),
+                     es: AsyncElasticsearch = Depends(get_es),
+                     index_name: str = Depends(get_index_name)):
+    body = {"from": from_, "size": size, "sort": [{"updated_at":"desc"}, {"_id":"asc"}], "query": {"match_all": {}}}
+    resp = await es.search(index=index_name, body=body)
+    total = resp["hits"]["total"]["value"] if isinstance(resp["hits"]["total"], dict) else resp["hits"]["total"]
+    return {"total": total, "items": resp["hits"]["hits"]}
+
+@router.get("/search")
+async def search_terms(q: str, size: int = Query(20, ge=1, le=200),
+                       es: AsyncElasticsearch = Depends(get_es),
+                       index_name: str = Depends(get_index_name)):
+    body = {
+        "size": size,
+        "query": {
+            "multi_match": {
+                "query": q,
+                "type": "bool_prefix",
+                "fields": ["term_text", "term_text._2gram", "term_text._3gram"]
+            }
+        }
+    }
+    resp = await es.search(index=index_name, body=body)
+    return {"items": resp["hits"]["hits"]}
+
+@router.post("/refresh")
+async def force_refresh(sf: SensitiveFilterAC = Depends(get_sf)):
+    n = await sf.refresh()
+    return {"ok": True, "count": n, "version": sf.version_tag}
