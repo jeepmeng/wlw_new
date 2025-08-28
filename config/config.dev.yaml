@@ -30,6 +30,7 @@ elasticsearch:
     file_index: "zhisk_files"
     chunk_index: "zhisk_results"
     ques_index: "wmx_ques"
+    sensitive_index: "sensitive_terms"
 
 
 task_defaults:
@@ -49,3 +50,15 @@ deepseek:
 qwen:
   api_key: "sk-e8d4973beecd4a43bdce4718b0b2444c"
   model: "qwen-plus"
+
+sensitive:
+  ignore_case: false         # 是否大小写不敏感
+  page_size: 2000            # ES 分页拉取大小（大词库用）
+  max_single_fetch: 10000    # 小词库阈值；≤该值时一次性拉
+  enable_input_block: true   # 是否启用输入拦截中间件
+  check_fields:              # 输入拦截检查的字段（按你的接口字段定）
+    - question
+    - filename
+    - new_content
+    - new_question
+    - title

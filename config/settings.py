@@ -36,6 +36,15 @@ class ESIndexConfig(BaseModel):
     file_index: str
     chunk_index: str
     ques_index: str
+    sensitive_index: str
+
+class SensitiveCfg(BaseModel):
+    ignore_case: bool = False
+    page_size: int = 2000
+    max_single_fetch: int = 10000
+    enable_input_block: bool = True
+    check_fields: List[str] = ["question", "filename", "new_content", "new_question", "title"]
+
 
 # ✅ Elasticsearch 主配置
 class ESConfig(BaseModel):
@@ -72,7 +81,7 @@ class Settings(BaseModel):
     deepseek: Deepseek
     session_cache: SessionCacheConfig
     qwen: QwenConfig
-
+    sensitive: SensitiveCfg = SensitiveCfg()
 
 # ✅ 配置加载函数
 def load_config() -> Settings:
