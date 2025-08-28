@@ -16,6 +16,8 @@ if settings.sensitive.enable_input_block:
     # 不传 sf/check_fields，运行期从 app.state 读取
     app.add_middleware(InputBlocker)
 
+
+
 # 注册路由
 app.include_router(async_vector_router)
 app.include_router(dialog_router)
