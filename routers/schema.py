@@ -49,6 +49,12 @@ class FileMeta(BaseModel):
 class FileBatchRequest(BaseModel):
     files: List[FileMeta]
 
+    # === 新增：是否启用 PDF OCR（不判断扩展名；收到 True 就尝试按 PDF OCR 解析）===
+    enable_pdf_ocr: Optional[bool] = False
+    # === 可选 OCR 参数（不传采用默认/环境值）===
+    ocr_lang: Optional[str] = "ch"
+    ocr_dpi: Optional[int] = 200
+
 
 
 

@@ -62,3 +62,7 @@ sensitive:
     - new_content
     - new_question
     - title
+
+
+ocr_service:
+  base_url: "http://172.16.19.61:8181"   # 你的OCR服务器地址

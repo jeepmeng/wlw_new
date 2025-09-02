@@ -201,7 +201,7 @@ async def upload_and_dispatch_files(data: FileBatchRequest):
         for file in data.files:
             ext = file.filename.split(".")[-1].lower()
 
-            async with session.get(str(file.url)) as resp:
+            async with session.get(file.url) as resp:
                 if resp.status != 200:
                     raise HTTPException(status_code=400, detail=f"下载失败: {file.filename}")
 
@@ -210,23 +210,13 @@ async def upload_and_dispatch_files(data: FileBatchRequest):
                     tmp.flush()
                     os.fsync(tmp.fileno())
                     tmp_path = tmp.name
-            # ✅ 任务内部使用 settings.task_defaults；这里只透传“开关 + 可选参数”
-            kwargs = dict(
-                create_by=file.user_id,
-                original_name=file.filename,
 
-                # === 新增：PDF OCR 开关与参数（任务端读取即可） ===
-                enable_pdf_ocr=data.enable_pdf_ocr or False,
-                ocr_lang=data.ocr_lang or "ch",
-                ocr_dpi=int(data.ocr_dpi or 200)
-            )
             # ✅ 不再构造 store_target，任务内部使用 settings.task_defaults 控制
             task_chain = parse_file_and_enqueue_chunks.s(
                 tmp_path,
                 ext,
-                # create_by=file.user_id,  # ✅ 保留 user_id 字段用于审计
-                # original_name = file.filename,
-                **kwargs
+                create_by=file.user_id,  # ✅ 保留 user_id 字段用于审计
+                original_name = file.filename,
             )
 
             result = task_chain.apply_async()

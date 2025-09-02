@@ -70,6 +70,10 @@ class QwenConfig(BaseModel):
     api_key: str
     model: str = "qwen-plus"
 
+class OCRServiceConfig(BaseModel):
+    # 代码层兜底，若 yaml / 环境变量都没给，则用本地
+    base_url: str = "http://127.0.0.1:8000"
+
 
 # ✅ 顶层配置结构
 class Settings(BaseModel):
@@ -82,7 +86,7 @@ class Settings(BaseModel):
     session_cache: SessionCacheConfig
     qwen: QwenConfig
     sensitive: SensitiveCfg = SensitiveCfg()
-
+    ocr_service: OCRServiceConfig = OCRServiceConfig()
 # ✅ 配置加载函数
 def load_config() -> Settings:
     env = os.getenv("ENV", "dev")  # 默认环境为 dev
